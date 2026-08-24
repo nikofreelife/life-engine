@@ -1,0 +1,108 @@
+name: Build Sideload IPA
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+
+      - name: Expo prebuild iOS
+        env:
+          CI: 1
+          EXPO_NO_GIT_STATUS: 1
+        run: npx expo prebuild --platform ios --non-interactive
+
+      - name: CocoaPods
+        working-directory: ios
+        run: |
+          if [ -f Podfile ]; then
+            pod install
+          fi
+
+      - name: Build unsigned device app
+        env:
+          NODE_BINARY: ${{ env.NODE_BINARY }}
+        run: |
+          set -euo pipefail
+          export NODE_BINARY="$(command -v node)"
+          cd ios
+          WORKSPACE="$(ls -d *.xcworkspace 2>/dev/null | head -n 1 || true)"
+          PROJECT="$(ls -d *.xcodeproj 2>/dev/null | head -n 1 || true)"
+          if [ -n "$WORKSPACE" ]; then
+            LIST_ARGS=(-workspace "$WORKSPACE")
+            BUILD_ARGS=(-workspace "$WORKSPACE")
+          else
+            LIST_ARGS=(-project "$PROJECT")
+            BUILD_ARGS=(-project "$PROJECT")
+          fi
+          SCHEME="$(xcodebuild -list "${LIST_ARGS[@]}" | awk '/Schemes:/{f=1;next} f&&NF{gsub(/^[ \t]+/,"",$0); print; exit}')"
+          echo "Using scheme: $SCHEME"
+          xcodebuild \
+            "${BUILD_ARGS[@]}" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            TARGETED_DEVICE_FAMILY=1,2 \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          APP="$(find "$RUNNER_TEMP/DerivedData" -name '*.app' -path '*/Release-iphoneos/*' | head -n 1)"
+          echo "Found app: $APP"
+          test -d "$APP"
+          rm -rf Payload
+          mkdir -p Payload
+          ditto "$APP" "Payload/LifeEngine.app"
+          zip -qry LifeEngine.ipa Payload
+          ls -lh LifeEngine.ipa
+          unzip -l LifeEngine.ipa | head
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeEngine-sideload
+          path: LifeEngine.ipa
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0-ipad
+          name: Life Engine v1.0 iPad
+          body: |
+            Unsigned universal IPA (iPhone + iPad) for Sideloadly / AltStore.
+            Landscape uses the sidebar; portrait uses tabs and a 2-column grid.
+          files: LifeEngine.ipa
+          fail_on_unmatched_files: true
