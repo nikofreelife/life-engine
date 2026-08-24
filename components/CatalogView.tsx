@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AddSectionCard, ItemCard, SectionTitle } from './ItemCard';
+import { useAuth } from '../src/auth';
+import { splitByAge } from '../src/age';
 import { STATUS_LABEL } from '../src/lib';
 import { useEngineLayout } from '../src/layout';
 import { useEngine } from '../src/store';
@@ -23,6 +25,8 @@ export function CatalogView({
   library?: boolean;
 }) {
   const { itemOf, sectionsFor, addCustomSection, removeCustomSection, addSectionItem, removeSectionItem } = useEngine();
+  const { user } = useAuth();
+  const age = user?.age ?? 0;
   const { isTablet, cardWidth, gap } = useEngineLayout();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
@@ -98,37 +102,57 @@ export function CatalogView({
         </ScrollView>
       </View>
       )}
-      {visible.map((section) => (
-        <View key={section.id}>
-          <SectionTitle
-            title={section.title}
-            description={section.description}
-            accent={section.accent}
-            onAddItem={() => setComposer(section)}
-            onRemoveSection={
-              section.custom
-                ? () =>
-                    Alert.alert('Удалить раздел?', section.title, [
-                      { text: 'Отмена', style: 'cancel' },
-                      { text: 'Удалить', style: 'destructive', onPress: () => removeCustomSection(section.id) },
-                    ])
-                : undefined
-            }
-          />
-          <View style={[styles.grid, { gap }]}>
-            {section.items.map((item, index) => (
-              <View key={item.id} style={{ width: cardWidth }}>
-                <ItemCard
-                  item={item}
-                  index={index}
-                  guide={library || section.mode === 'guide'}
-                  onRemove={item.custom ? () => removeSectionItem(section.id, item.id) : undefined}
-                />
-              </View>
-            ))}
+      {visible.map((section) => {
+        const split = splitByAge(section.items, age, section.minAge);
+        const groups: Array<{ label?: string; items: typeof section.items }> = [
+          { label: 'Высший приоритет на данный момент', items: split.priority },
+          { items: split.current },
+          { label: 'На будущее', items: split.future },
+        ];
+        return (
+          <View key={section.id}>
+            <SectionTitle
+              title={section.title}
+              description={section.description}
+              accent={section.accent}
+              onAddItem={() => setComposer(section)}
+              onRemoveSection={
+                section.custom
+                  ? () =>
+                      Alert.alert('Удалить раздел?', section.title, [
+                        { text: 'Отмена', style: 'cancel' },
+                        { text: 'Удалить', style: 'destructive', onPress: () => removeCustomSection(section.id) },
+                      ])
+                  : undefined
+              }
+            />
+            {groups.map((group, groupIndex) =>
+              group.items.length ? (
+                <View key={`${section.id}-${group.label ?? 'now'}-${groupIndex}`}>
+                  {group.label ? (
+                    <Text style={[styles.ageLabel, group.label === 'На будущее' && styles.ageLabelFuture]}>
+                      {group.label}
+                    </Text>
+                  ) : null}
+                  <View style={[styles.grid, { gap }]}>
+                    {group.items.map((item, index) => (
+                      <View key={item.id} style={{ width: cardWidth }}>
+                        <ItemCard
+                          item={item}
+                          index={index}
+                          guide={library || section.mode === 'guide'}
+                          sectionMinAge={section.minAge}
+                          onRemove={item.custom ? () => removeSectionItem(section.id, item.id) : undefined}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ) : null,
+            )}
           </View>
-        </View>
-      ))}
+        );
+      })}
       <AddSectionCard onPress={() => setComposer('section')} />
       {visible.length === 0 ? (
         <Text style={styles.empty}>Ничего не найдено. Смени фильтр или запрос.</Text>
@@ -209,6 +233,16 @@ const styles = StyleSheet.create({
   filterText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
   filterTextOn: { color: colors.text },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  ageLabel: {
+    color: colors.amber,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  ageLabelFuture: { color: colors.crimson },
   empty: { color: colors.muted, textAlign: 'center', marginTop: 28 },
   modalBack: {
     flex: 1,

@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
+import { useAuth } from '../src/auth';
 import { useEngineLayout } from '../src/layout';
 import { useEngine } from '../src/store';
 import { colors } from '../src/theme';
@@ -15,6 +16,7 @@ type Props = {
 export function EngineHeader({ compact }: Props) {
   const router = useRouter();
   const { progress } = useEngine();
+  const { user } = useAuth();
   const { isTablet } = useEngineLayout();
   const progressLabel = `${progress.done}/${progress.total}`;
   const taps = useRef<{ count: number; last: number }>({ count: 0, last: 0 });
@@ -63,6 +65,9 @@ export function EngineHeader({ compact }: Props) {
         <Text style={[styles.kicker, compact && styles.kickerCompact]}>LIFE ENGINE</Text>
         <Text style={styles.sub}>v1.0 · система жизни</Text>
       </Pressable>
+      <Pressable onPress={() => router.push('/profile')} style={styles.profile} hitSlop={8}>
+        <Text style={styles.profileAge}>{user?.age ?? '—'} лет</Text>
+      </Pressable>
       <View style={styles.badge}>
         <Text style={styles.badgeText}>{progressLabel}</Text>
       </View>
@@ -104,7 +109,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 11,
   },
-  titles: { flex: 1, minWidth: 120 },
+  titles: { flex: 1, minWidth: 80 },
   kicker: {
     color: colors.text,
     fontSize: 18,
@@ -117,6 +122,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     letterSpacing: 0.4,
+  },
+  profile: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardElevated,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  profileAge: {
+    color: colors.blue,
+    fontSize: 12,
+    fontWeight: '700',
   },
   badge: {
     borderWidth: 1,

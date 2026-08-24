@@ -159,6 +159,7 @@ export const BOOKS: CatalogSection[] = [
     title: 'Литература на будущее',
     description: 'Глубокий слой. Читать по мере взросления и готовности.',
     accent: 'violet',
+    minAge: 20,
     items: [
       {
         id: 'castaneda-1',
@@ -299,6 +300,9 @@ export const LEARNING: CatalogSection[] = [
           'Даже если не планируешь становиться психотерапевтом — это карта человека и конфликта.',
         tags: ['курс', '20 лет'],
         accent: 'amber',
+        minAge: 20,
+        priorityMin: 20,
+        priorityMax: 22,
       },
       {
         id: 'course-speaking',
@@ -307,6 +311,8 @@ export const LEARNING: CatalogSection[] = [
         helper: 'Уверенность на публике, точная формулировка мыслей, ораторское искусство.',
         tags: ['курс', '17–18'],
         accent: 'amber',
+        priorityMin: 17,
+        priorityMax: 18,
       },
       {
         id: 'course-marketing',
@@ -473,6 +479,7 @@ export const HEALTH: CatalogSection[] = [
     title: 'Голодание',
     description: 'Инструмент чистки. Желательно не раньше 25 лет. Главное — правильный выход.',
     accent: 'crimson',
+    minAge: 25,
     items: [
       {
         id: 'fast-age',
@@ -563,6 +570,8 @@ export const HEALTH: CatalogSection[] = [
         subtitle: 'Максимально важно',
         tags: ['бой', 'приоритет'],
         accent: 'blue',
+        priorityMin: 14,
+        priorityMax: 22,
       },
       {
         id: 'phys-athletic',

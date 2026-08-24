@@ -12,6 +12,9 @@ export type CatalogItem = {
   tags: string[];
   accent: Accent;
   custom?: boolean;
+  minAge?: number;
+  priorityMin?: number;
+  priorityMax?: number;
 };
 
 export type CatalogSection = {
@@ -23,6 +26,7 @@ export type CatalogSection = {
   mode?: 'catalog' | 'guide';
   tab?: TabKey;
   custom?: boolean;
+  minAge?: number;
 };
 
 export type ItemState = {
@@ -72,6 +76,38 @@ export type SecretState = {
   nofapJournal: JournalEntry[];
   customTracks: CustomTrack[];
   calendar: Record<string, CalendarDay>;
+};
+
+export type UserAccount = {
+  id: string;
+  email: string;
+  age: number;
+  createdAt: string;
+  local?: boolean;
+};
+
+export type Ageable = {
+  minAge?: number;
+  priorityMin?: number;
+  priorityMax?: number;
+};
+
+export type KnowledgeTopic = Ageable & {
+  id: string;
+  title: string;
+  icon: string;
+  gives: string;
+  how: string;
+  when: string;
+};
+
+export type KnowledgeFactor = Ageable & {
+  id: string;
+  emoji: string;
+  title: string;
+  description: string;
+  accent: Accent;
+  topics: KnowledgeTopic[];
 };
 
 export type CoachMessage = {

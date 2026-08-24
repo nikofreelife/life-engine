@@ -1,6 +1,21 @@
 import type { EngineState, Habit, ItemState, Status } from './types';
 
 export const STORAGE_KEY = 'life-engine-v1';
+export const ACCOUNTS_KEY = 'life-engine-accounts';
+export const SESSION_KEY = 'le-session';
+export const LEGACY_MIGRATED_KEY = 'life-engine-legacy-migrated';
+
+export function userStorageKey(userId: string) {
+  return `${STORAGE_KEY}:${userId}`;
+}
+
+export function userPinKey(userId: string) {
+  return `life-engine-pin:${userId}`;
+}
+
+export function userPassKey(userId: string) {
+  return `le-pass-${userId}`;
+}
 
 export const STATUS_LABEL: Record<Status, string> = {
   planned: 'В планах',

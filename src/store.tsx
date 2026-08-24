@@ -6,19 +6,23 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 
+import { useAuth } from './auth';
 import { ALL_SECTIONS, TRACKED_ITEMS } from './data/catalog';
-import { KNOWLEDGE } from './data/knowledge';
 import {
   STORAGE_KEY,
+  LEGACY_MIGRATED_KEY,
   defaultItem,
   emptyState,
   hashPin,
   todayKey,
   uid,
+  userPinKey,
+  userStorageKey,
 } from './lib';
 import type {
   CalendarDay,
@@ -109,60 +113,93 @@ function patchTrackStart(prev: EngineState, track: string, iso: string): EngineS
   };
 }
 
-async function readPinHash(): Promise<string | null> {
+async function readPinHash(userId: string): Promise<string | null> {
   try {
-    const secure = await SecureStore.getItemAsync('life-engine-pin');
-    if (secure) return secure;
+    const keyed = await SecureStore.getItemAsync(userPinKey(userId));
+    if (keyed) return keyed;
+    const legacy = await SecureStore.getItemAsync('life-engine-pin');
+    if (legacy) {
+      await SecureStore.setItemAsync(userPinKey(userId), legacy);
+      return legacy;
+    }
   } catch {
     /* web / unsupported */
   }
   return null;
 }
 
-async function writePinHash(hash: string) {
+async function writePinHash(userId: string, hash: string) {
   try {
-    await SecureStore.setItemAsync('life-engine-pin', hash);
+    await SecureStore.setItemAsync(userPinKey(userId), hash);
   } catch {
     /* persist via AsyncStorage blob as fallback */
   }
 }
 
+function hydrateState(parsed: EngineState, pinHash: string | null): EngineState {
+  return {
+    ...emptyState(),
+    ...parsed,
+    customSections: parsed.customSections ?? [],
+    extraItems: parsed.extraItems ?? {},
+    coachMessages: parsed.coachMessages ?? [],
+    secret: {
+      ...emptyState().secret,
+      ...parsed.secret,
+      thcMonthlyCost: parsed.secret?.thcMonthlyCost
+        ?? ((parsed.secret?.thcDailyCost ?? 0) > 0 ? parsed.secret.thcDailyCost * 30.437 : 0),
+      customTracks: parsed.secret?.customTracks ?? [],
+      pinHash: pinHash ?? parsed.secret?.pinHash ?? null,
+    },
+  };
+}
+
 export function EngineProvider({ children }: { children: ReactNode }) {
+  const { user, ready: authReady } = useAuth();
   const [state, setState] = useState<EngineState>(emptyState);
   const [ready, setReady] = useState(false);
+  const loadedId = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!authReady) return;
+    if (!user) {
+      loadedId.current = null;
+      setState(emptyState());
+      setReady(true);
+      return;
+    }
     let alive = true;
+    loadedId.current = null;
+    setReady(false);
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        const pinHash = await readPinHash();
+        let raw = await AsyncStorage.getItem(userStorageKey(user.id));
+        if (!raw) {
+          const migrated = await AsyncStorage.getItem(LEGACY_MIGRATED_KEY);
+          if (!migrated) {
+            raw = await AsyncStorage.getItem(STORAGE_KEY);
+            if (raw) {
+              await AsyncStorage.setItem(userStorageKey(user.id), raw);
+              await AsyncStorage.setItem(LEGACY_MIGRATED_KEY, user.id);
+            }
+          }
+        }
+        const pinHash = await readPinHash(user.id);
         if (!alive) return;
         if (raw) {
-          const parsed = JSON.parse(raw) as EngineState;
+          setState(hydrateState(JSON.parse(raw) as EngineState, pinHash));
+        } else {
           setState({
             ...emptyState(),
-            ...parsed,
-            customSections: parsed.customSections ?? [],
-            extraItems: parsed.extraItems ?? {},
-            coachMessages: parsed.coachMessages ?? [],
-            secret: {
-              ...emptyState().secret,
-              ...parsed.secret,
-              thcMonthlyCost: parsed.secret?.thcMonthlyCost
-                ?? ((parsed.secret?.thcDailyCost ?? 0) > 0 ? parsed.secret.thcDailyCost * 30.437 : 0),
-              customTracks: parsed.secret?.customTracks ?? [],
-              pinHash: pinHash ?? parsed.secret?.pinHash ?? null,
-            },
+            secret: { ...emptyState().secret, pinHash },
           });
-        } else if (pinHash) {
-          setState((prev) => ({
-            ...prev,
-            secret: { ...prev.secret, pinHash },
-          }));
         }
+        loadedId.current = user.id;
       } catch {
-        /* keep defaults */
+        if (alive) {
+          setState(emptyState());
+          loadedId.current = user.id;
+        }
       } finally {
         if (alive) setReady(true);
       }
@@ -170,12 +207,12 @@ export function EngineProvider({ children }: { children: ReactNode }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [authReady, user?.id]);
 
   useEffect(() => {
-    if (!ready) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state)).catch(() => undefined);
-  }, [ready, state]);
+    if (!ready || !user || loadedId.current !== user.id) return;
+    AsyncStorage.setItem(userStorageKey(user.id), JSON.stringify(state)).catch(() => undefined);
+  }, [ready, state, user]);
 
   const mutate = useCallback((fn: (prev: EngineState) => EngineState) => {
     setState((prev) => fn(prev));
@@ -201,9 +238,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<EngineContextValue>(() => {
     const guideIds = new Set(
-      [...ALL_SECTIONS, ...KNOWLEDGE]
-        .filter((section) => section.mode === 'guide')
-        .map((section) => section.id),
+      ALL_SECTIONS.filter((section) => section.mode === 'guide').map((section) => section.id),
     );
     const tracked = [
       ...TRACKED_ITEMS,
@@ -251,14 +286,16 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         }));
       },
       setPin: async (pin) => {
+        if (!user) return;
         const pinHash = hashPin(pin);
-        await writePinHash(pinHash);
+        await writePinHash(user.id, pinHash);
         mutate((prev) => ({ ...prev, secret: { ...prev.secret, pinHash } }));
       },
       verifyPin: async (pin) => {
         const incoming = hashPin(pin);
         if (state.secret.pinHash) return incoming === state.secret.pinHash;
-        const stored = await readPinHash();
+        if (!user) return false;
+        const stored = await readPinHash(user.id);
         return stored ? incoming === stored : false;
       },
       hasPin: Boolean(state.secret.pinHash),
@@ -423,7 +460,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         ratio: tracked.length ? progressDone / tracked.length : 0,
       },
     };
-  }, [itemOf, mutate, patchItem, ready, state]);
+  }, [itemOf, mutate, patchItem, ready, state, user]);
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;
 }

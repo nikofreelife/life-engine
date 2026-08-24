@@ -1,7 +1,6 @@
 import { ScrollView, StyleSheet, Text } from 'react-native';
 
-import { CatalogView } from '@/components/CatalogView';
-import { KNOWLEDGE } from '@/src/data/knowledge';
+import { KnowledgeBoard } from '@/components/KnowledgeBoard';
 import { useEngineLayout } from '@/src/layout';
 import { colors } from '@/src/theme';
 
@@ -14,16 +13,11 @@ export default function KnowledgeScreen() {
       contentContainerStyle={[styles.content, { paddingHorizontal: pad, paddingBottom: isTablet ? 56 : 40 }]}
       showsVerticalScrollIndicator={false}>
       <Text style={styles.eyebrow}>БАЗА ЗНАНИЙ</Text>
-      <Text style={[styles.title, { fontSize: titleSize }]}>Фундамент, не чеклист</Text>
+      <Text style={[styles.title, { fontSize: titleSize }]}>Факторы. Раскрой и читай</Text>
       <Text style={[styles.lead, isTablet && styles.leadTablet]}>
-        Энциклопедия принципов. Без галочек, статусов и прогресса — только карты, которые держат жизнь.
+        Восемь автономных разделов. Без галочек и статусов. Нажми тему — откроется, что даёт, как делать и когда начинать.
       </Text>
-      <CatalogView
-        sections={KNOWLEDGE}
-        searchHint="Найти принцип, термин, практику..."
-        tab="knowledge"
-        library
-      />
+      <KnowledgeBoard />
     </ScrollView>
   );
 }
