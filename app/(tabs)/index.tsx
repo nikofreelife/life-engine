@@ -18,7 +18,7 @@ export default function BooksScreen() {
       <Text style={[styles.lead, isTablet && styles.leadTablet]}>
         Читай по слоям: сначала психология и влияние, затем трансерфинг, затем стратегия. Глубокий канон — на будущее.
       </Text>
-      <CatalogView sections={BOOKS} searchHint="Найти книгу, автора, тег..." />
+      <CatalogView sections={BOOKS} searchHint="Найти книгу, автора, тег..." tab="books" />
     </ScrollView>
   );
 }

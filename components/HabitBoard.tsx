@@ -116,9 +116,9 @@ export function HabitBoard() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 10, marginBottom: 8 },
+  wrap: { gap: 14, marginBottom: 16 },
   kicker: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 4 },
-  habitGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  habitGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   cardHalf: { flexBasis: 340, flexGrow: 1, maxWidth: '100%' },
   addRow: { flexDirection: 'row', gap: 8 },
   input: {

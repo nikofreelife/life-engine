@@ -18,7 +18,7 @@ export default function LearnScreen() {
       <Text style={[styles.lead, isTablet && styles.leadTablet]}>
         Курсы по возрасту и системы самопознания. Статусы, теги и инсайты — к каждому пункту.
       </Text>
-      <CatalogView sections={LEARNING} searchHint="Найти курс или практику..." />
+      <CatalogView sections={LEARNING} searchHint="Найти курс или практику..." tab="learn" />
     </ScrollView>
   );
 }

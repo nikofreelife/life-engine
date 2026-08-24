@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -19,7 +19,6 @@ export function EngineHeader({ compact }: Props) {
   const progressLabel = `${progress.done}/${progress.total}`;
   const taps = useRef<{ count: number; last: number }>({ count: 0, last: 0 });
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [holding, setHolding] = useState(false);
 
   const onUnlock = () => router.push('/secret');
 
@@ -35,15 +34,12 @@ export function EngineHeader({ compact }: Props) {
   };
 
   const startHold = () => {
-    setHolding(true);
     holdTimer.current = setTimeout(() => {
-      setHolding(false);
       onUnlock();
     }, 3000);
   };
 
   const endHold = () => {
-    setHolding(false);
     if (holdTimer.current) clearTimeout(holdTimer.current);
   };
 
@@ -54,7 +50,8 @@ export function EngineHeader({ compact }: Props) {
       <Pressable
         onPressIn={startHold}
         onPressOut={endHold}
-        style={({ pressed }) => [styles.mark, compact && styles.markCompact, holding || pressed ? styles.markHot : null]}>
+        delayLongPress={3000}
+        style={[styles.mark, compact && styles.markCompact]}>
         <LinearGradient
           colors={['#10B981', '#3B82F6', '#8B5CF6']}
           start={{ x: 0, y: 0 }}
@@ -77,21 +74,21 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 14,
+    gap: 14,
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 18,
   },
   wrapCompact: {
     paddingHorizontal: 4,
     paddingTop: 12,
-    paddingBottom: 16,
+    paddingBottom: 18,
     flexWrap: 'wrap',
   },
   wrapTablet: {
-    paddingHorizontal: 36,
-    paddingTop: 12,
-    paddingBottom: 16,
+    paddingHorizontal: 44,
+    paddingTop: 14,
+    paddingBottom: 20,
   },
   mark: {
     width: 42,
@@ -103,10 +100,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   markCompact: { width: 36, height: 36, borderRadius: 12 },
-  markHot: {
-    borderColor: colors.crimson,
-    transform: [{ scale: 0.96 }],
-  },
   markInner: {
     flex: 1,
     borderRadius: 11,

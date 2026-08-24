@@ -8,9 +8,12 @@ export function useEngineLayout() {
   const sidebar = width >= 900;
   const contentW = sidebar ? width - 248 : width;
   const columns = contentW >= 1100 ? 3 : contentW >= 560 ? 2 : 1;
-  const pad = isTablet ? 36 : 20;
+  const pad = isTablet ? 44 : 24;
+  const gap = isTablet ? 22 : 18;
   const titleSize = isTablet ? 34 : 26;
   const maxContent = isWide ? 1280 : 960;
+  const innerW = Math.max(280, Math.min(maxContent, contentW) - pad * 2);
+  const cardWidth = columns === 1 ? innerW : (innerW - gap * (columns - 1)) / columns;
 
   return {
     width,
@@ -20,15 +23,10 @@ export function useEngineLayout() {
     isWide,
     columns,
     pad,
+    gap,
+    cardWidth,
     sidebar,
     titleSize,
     maxContent,
-    slot: {
-      flexGrow: 1,
-      flexShrink: 1,
-      flexBasis: columns === 1 ? '100%' : columns === 2 ? 260 : 240,
-      maxWidth: columns === 1 ? '100%' : columns === 2 ? '50%' : '33.33%',
-      minWidth: columns === 1 ? '100%' : 240,
-    } as const,
   };
 }

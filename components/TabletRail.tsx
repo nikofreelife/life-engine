@@ -46,7 +46,7 @@ export function TabletRail({ state, navigation, descriptors }: RailProps) {
           );
         })}
       </View>
-      <Text style={styles.hint}>Удержи логотип 3 сек{'\n'}или 5 тапов по названию</Text>
+      <View style={{ height: 12 }} />
     </View>
   );
 }
@@ -79,5 +79,4 @@ const styles = StyleSheet.create({
   icon: { fontSize: 20 },
   label: { color: colors.muted, fontSize: 16, fontWeight: '700' },
   labelOn: { color: colors.text },
-  hint: { color: colors.faint, fontSize: 11, lineHeight: 16, paddingHorizontal: 8 },
 });

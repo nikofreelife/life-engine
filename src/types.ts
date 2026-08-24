@@ -1,14 +1,17 @@
 import type { Accent } from './theme';
 
 export type Status = 'planned' | 'progress' | 'done';
+export type TabKey = 'books' | 'learn' | 'health';
 
 export type CatalogItem = {
   id: string;
   title: string;
   subtitle?: string;
   helper?: string;
+  body?: string;
   tags: string[];
   accent: Accent;
+  custom?: boolean;
 };
 
 export type CatalogSection = {
@@ -17,6 +20,9 @@ export type CatalogSection = {
   description?: string;
   accent: Accent;
   items: CatalogItem[];
+  mode?: 'catalog' | 'guide';
+  tab?: TabKey;
+  custom?: boolean;
 };
 
 export type ItemState = {
@@ -63,4 +69,6 @@ export type EngineState = {
   items: Record<string, ItemState>;
   habits: Habit[];
   secret: SecretState;
+  customSections: CatalogSection[];
+  extraItems: Record<string, CatalogItem[]>;
 };

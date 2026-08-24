@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { ALL_ITEMS } from './data/catalog';
+import { ALL_SECTIONS, TRACKED_ITEMS } from './data/catalog';
 import {
   STORAGE_KEY,
   defaultItem,
@@ -21,6 +21,8 @@ import {
 } from './lib';
 import type {
   CalendarDay,
+  CatalogItem,
+  CatalogSection,
   EngineState,
   Habit,
   ItemState,
@@ -28,6 +30,7 @@ import type {
   JournalKind,
   SecretState,
   Status,
+  TabKey,
 } from './types';
 
 type EngineContextValue = {
@@ -45,7 +48,15 @@ type EngineContextValue = {
   hasPin: boolean;
   patchSecret: (patch: Partial<SecretState>) => void;
   addJournal: (track: 'thc' | 'nofap', kind: JournalKind, text: string) => void;
+  removeJournal: (track: 'thc' | 'nofap', id: string) => void;
+  relapse: (track: 'thc' | 'nofap') => void;
+  setTrackStart: (track: 'thc' | 'nofap', iso: string) => void;
   setCalendarDay: (day: string, value: CalendarDay) => void;
+  addCustomSection: (tab: TabKey, title: string, description: string, accent: CatalogSection['accent']) => void;
+  removeCustomSection: (id: string) => void;
+  addSectionItem: (section: CatalogSection, title: string, subtitle?: string) => void;
+  removeSectionItem: (sectionId: string, itemId: string) => void;
+  sectionsFor: (tab: TabKey, builtin: CatalogSection[]) => CatalogSection[];
   progress: { done: number; total: number; ratio: number };
 };
 
@@ -85,6 +96,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           setState({
             ...emptyState(),
             ...parsed,
+            customSections: parsed.customSections ?? [],
+            extraItems: parsed.extraItems ?? {},
             secret: {
               ...emptyState().secret,
               ...parsed.secret,
@@ -136,7 +149,13 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<EngineContextValue>(() => {
-    const progressDone = ALL_ITEMS.filter((item) => state.items[item.id]?.status === 'done').length;
+    const guideIds = new Set(ALL_SECTIONS.filter((section) => section.mode === 'guide').map((section) => section.id));
+    const tracked = [
+      ...TRACKED_ITEMS,
+      ...state.customSections.flatMap((section) => section.items),
+      ...Object.entries(state.extraItems).flatMap(([sectionId, items]) => (guideIds.has(sectionId) ? [] : items)),
+    ];
+    const progressDone = tracked.filter((item) => state.items[item.id]?.status === 'done').length;
     return {
       ready,
       state,
@@ -206,6 +225,50 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           };
         });
       },
+      removeJournal: (track, id) => {
+        mutate((prev) => {
+          const key = track === 'thc' ? 'thcJournal' : 'nofapJournal';
+          return {
+            ...prev,
+            secret: { ...prev.secret, [key]: prev.secret[key].filter((entry) => entry.id !== id) },
+          };
+        });
+      },
+      setTrackStart: (track, iso) => {
+        const key = track === 'thc' ? 'thcStartISO' : 'nofapStartISO';
+        mutate((prev) => ({ ...prev, secret: { ...prev.secret, [key]: iso } }));
+      },
+      relapse: (track) => {
+        const now = new Date();
+        const day = todayKey(now);
+        const entry: JournalEntry = {
+          id: uid('j'),
+          atISO: now.toISOString(),
+          kind: 'slip',
+          text: 'Срыв',
+        };
+        const journalKey = track === 'thc' ? 'thcJournal' : 'nofapJournal';
+        const startKey = track === 'thc' ? 'thcStartISO' : 'nofapStartISO';
+        mutate((prev) => {
+          const existing = prev.secret.calendar[day];
+          return {
+            ...prev,
+            secret: {
+              ...prev.secret,
+              [startKey]: now.toISOString(),
+              [journalKey]: [entry, ...prev.secret[journalKey]],
+              calendar: {
+                ...prev.secret.calendar,
+                [day]: {
+                  state: 'slip',
+                  mood: existing?.mood ?? 2,
+                  note: existing?.note?.trim() ? existing.note : 'Срыв',
+                },
+              },
+            },
+          };
+        });
+      },
       setCalendarDay: (day, value) => {
         mutate((prev) => ({
           ...prev,
@@ -215,10 +278,77 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           },
         }));
       },
+      addCustomSection: (tab, title, description, accent) => {
+        const clean = title.trim();
+        if (!clean) return;
+        const section: CatalogSection = {
+          id: uid('sec'),
+          title: clean,
+          description: description.trim() || undefined,
+          accent,
+          items: [],
+          tab,
+          custom: true,
+        };
+        mutate((prev) => ({ ...prev, customSections: [...prev.customSections, section] }));
+      },
+      removeCustomSection: (id) => {
+        mutate((prev) => ({
+          ...prev,
+          customSections: prev.customSections.filter((section) => section.id !== id),
+        }));
+      },
+      addSectionItem: (section, title, subtitle) => {
+        const clean = title.trim();
+        if (!clean) return;
+        const item: CatalogItem = {
+          id: uid('user'),
+          title: clean,
+          subtitle: subtitle?.trim() || undefined,
+          tags: ['своё'],
+          accent: section.accent,
+          custom: true,
+        };
+        mutate((prev) => {
+          if (section.custom) {
+            return {
+              ...prev,
+              customSections: prev.customSections.map((entry) =>
+                entry.id === section.id ? { ...entry, items: [...entry.items, item] } : entry,
+              ),
+            };
+          }
+          const extra = prev.extraItems[section.id] ?? [];
+          return { ...prev, extraItems: { ...prev.extraItems, [section.id]: [...extra, item] } };
+        });
+      },
+      removeSectionItem: (sectionId, itemId) => {
+        mutate((prev) => ({
+          ...prev,
+          customSections: prev.customSections.map((section) =>
+            section.id === sectionId
+              ? { ...section, items: section.items.filter((item) => item.id !== itemId) }
+              : section,
+          ),
+          extraItems: {
+            ...prev.extraItems,
+            [sectionId]: (prev.extraItems[sectionId] ?? []).filter((item) => item.id !== itemId),
+          },
+        }));
+      },
+      sectionsFor: (tab, builtin) => {
+        const extras = state.extraItems;
+        const withExtras = builtin.map((section) => ({
+          ...section,
+          items: [...section.items, ...(extras[section.id] ?? [])],
+        }));
+        const custom = state.customSections.filter((section) => section.tab === tab);
+        return [...withExtras, ...custom];
+      },
       progress: {
         done: progressDone,
-        total: ALL_ITEMS.length,
-        ratio: ALL_ITEMS.length ? progressDone / ALL_ITEMS.length : 0,
+        total: tracked.length,
+        ratio: tracked.length ? progressDone / tracked.length : 0,
       },
     };
   }, [itemOf, mutate, patchItem, ready, state]);

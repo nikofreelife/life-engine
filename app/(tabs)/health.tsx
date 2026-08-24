@@ -22,7 +22,7 @@ export default function HealthScreen() {
       </Text>
       <QuoteBanner />
       <HabitBoard />
-      <CatalogView sections={HEALTH} searchHint="Найти протокол, еду, практику..." />
+      <CatalogView sections={HEALTH} searchHint="Найти протокол, еду, практику..." tab="health" />
     </ScrollView>
   );
 }

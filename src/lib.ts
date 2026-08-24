@@ -50,6 +50,8 @@ export function emptyState(): EngineState {
       nofapJournal: [],
       calendar: {},
     },
+    customSections: [],
+    extraItems: {},
   };
 }
 
