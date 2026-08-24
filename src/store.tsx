@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import { ALL_SECTIONS, TRACKED_ITEMS } from './data/catalog';
+import { KNOWLEDGE } from './data/knowledge';
 import {
   STORAGE_KEY,
   defaultItem,
@@ -23,6 +24,8 @@ import type {
   CalendarDay,
   CatalogItem,
   CatalogSection,
+  CoachMessage,
+  CustomTrack,
   EngineState,
   Habit,
   ItemState,
@@ -47,10 +50,14 @@ type EngineContextValue = {
   verifyPin: (pin: string) => Promise<boolean>;
   hasPin: boolean;
   patchSecret: (patch: Partial<SecretState>) => void;
-  addJournal: (track: 'thc' | 'nofap', kind: JournalKind, text: string) => void;
-  removeJournal: (track: 'thc' | 'nofap', id: string) => void;
-  relapse: (track: 'thc' | 'nofap') => void;
-  setTrackStart: (track: 'thc' | 'nofap', iso: string) => void;
+  addJournal: (track: string, kind: JournalKind, text: string) => void;
+  removeJournal: (track: string, id: string) => void;
+  relapse: (track: string, reason: string) => void;
+  setTrackStart: (track: string, iso: string) => void;
+  addCustomTrack: (name: string) => void;
+  removeCustomTrack: (id: string) => void;
+  addCoachMessage: (role: 'user' | 'coach', text: string) => void;
+  clearCoach: () => void;
   setCalendarDay: (day: string, value: CalendarDay) => void;
   addCustomSection: (tab: TabKey, title: string, description: string, accent: CatalogSection['accent']) => void;
   removeCustomSection: (id: string) => void;
@@ -61,6 +68,46 @@ type EngineContextValue = {
 };
 
 const EngineContext = createContext<EngineContextValue | null>(null);
+
+function patchTrackJournal(
+  prev: EngineState,
+  track: string,
+  fn: (list: JournalEntry[]) => JournalEntry[],
+): EngineState {
+  if (track === 'thc') {
+    return { ...prev, secret: { ...prev.secret, thcJournal: fn(prev.secret.thcJournal) } };
+  }
+  if (track === 'nofap') {
+    return { ...prev, secret: { ...prev.secret, nofapJournal: fn(prev.secret.nofapJournal) } };
+  }
+  return {
+    ...prev,
+    secret: {
+      ...prev.secret,
+      customTracks: (prev.secret.customTracks ?? []).map((item) =>
+        item.id === track ? { ...item, journal: fn(item.journal) } : item,
+      ),
+    },
+  };
+}
+
+function patchTrackStart(prev: EngineState, track: string, iso: string): EngineState {
+  if (track === 'thc') {
+    return { ...prev, secret: { ...prev.secret, thcStartISO: iso } };
+  }
+  if (track === 'nofap') {
+    return { ...prev, secret: { ...prev.secret, nofapStartISO: iso } };
+  }
+  return {
+    ...prev,
+    secret: {
+      ...prev.secret,
+      customTracks: (prev.secret.customTracks ?? []).map((item) =>
+        item.id === track ? { ...item, startISO: iso } : item,
+      ),
+    },
+  };
+}
 
 async function readPinHash(): Promise<string | null> {
   try {
@@ -98,9 +145,13 @@ export function EngineProvider({ children }: { children: ReactNode }) {
             ...parsed,
             customSections: parsed.customSections ?? [],
             extraItems: parsed.extraItems ?? {},
+            coachMessages: parsed.coachMessages ?? [],
             secret: {
               ...emptyState().secret,
               ...parsed.secret,
+              thcMonthlyCost: parsed.secret?.thcMonthlyCost
+                ?? ((parsed.secret?.thcDailyCost ?? 0) > 0 ? parsed.secret.thcDailyCost * 30.437 : 0),
+              customTracks: parsed.secret?.customTracks ?? [],
               pinHash: pinHash ?? parsed.secret?.pinHash ?? null,
             },
           });
@@ -149,10 +200,14 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<EngineContextValue>(() => {
-    const guideIds = new Set(ALL_SECTIONS.filter((section) => section.mode === 'guide').map((section) => section.id));
+    const guideIds = new Set(
+      [...ALL_SECTIONS, ...KNOWLEDGE]
+        .filter((section) => section.mode === 'guide')
+        .map((section) => section.id),
+    );
     const tracked = [
       ...TRACKED_ITEMS,
-      ...state.customSections.flatMap((section) => section.items),
+      ...state.customSections.filter((section) => section.mode !== 'guide').flatMap((section) => section.items),
       ...Object.entries(state.extraItems).flatMap(([sectionId, items]) => (guideIds.has(sectionId) ? [] : items)),
     ];
     const progressDone = tracked.filter((item) => state.items[item.id]?.status === 'done').length;
@@ -217,57 +272,73 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           kind,
           text: text.trim(),
         };
-        mutate((prev) => {
-          const key = track === 'thc' ? 'thcJournal' : 'nofapJournal';
-          return {
-            ...prev,
-            secret: { ...prev.secret, [key]: [entry, ...prev.secret[key]] },
-          };
-        });
+        mutate((prev) => patchTrackJournal(prev, track, (list) => [entry, ...list]));
       },
       removeJournal: (track, id) => {
-        mutate((prev) => {
-          const key = track === 'thc' ? 'thcJournal' : 'nofapJournal';
-          return {
-            ...prev,
-            secret: { ...prev.secret, [key]: prev.secret[key].filter((entry) => entry.id !== id) },
-          };
-        });
+        mutate((prev) => patchTrackJournal(prev, track, (list) => list.filter((entry) => entry.id !== id)));
       },
       setTrackStart: (track, iso) => {
-        const key = track === 'thc' ? 'thcStartISO' : 'nofapStartISO';
-        mutate((prev) => ({ ...prev, secret: { ...prev.secret, [key]: iso } }));
+        mutate((prev) => patchTrackStart(prev, track, iso));
       },
-      relapse: (track) => {
+      relapse: (track, reason) => {
         const now = new Date();
         const day = todayKey(now);
+        const why = reason.trim() || 'Срыв';
         const entry: JournalEntry = {
           id: uid('j'),
           atISO: now.toISOString(),
           kind: 'slip',
-          text: 'Срыв',
+          text: why,
         };
-        const journalKey = track === 'thc' ? 'thcJournal' : 'nofapJournal';
-        const startKey = track === 'thc' ? 'thcStartISO' : 'nofapStartISO';
         mutate((prev) => {
-          const existing = prev.secret.calendar[day];
+          const withJournal = patchTrackJournal(prev, track, (list) => [entry, ...list]);
+          const withStart = patchTrackStart(withJournal, track, now.toISOString());
+          const existing = withStart.secret.calendar[day];
           return {
-            ...prev,
+            ...withStart,
             secret: {
-              ...prev.secret,
-              [startKey]: now.toISOString(),
-              [journalKey]: [entry, ...prev.secret[journalKey]],
+              ...withStart.secret,
               calendar: {
-                ...prev.secret.calendar,
+                ...withStart.secret.calendar,
                 [day]: {
                   state: 'slip',
                   mood: existing?.mood ?? 2,
-                  note: existing?.note?.trim() ? existing.note : 'Срыв',
+                  note: why,
                 },
               },
             },
           };
         });
+      },
+      addCustomTrack: (name) => {
+        const clean = name.trim();
+        if (!clean) return;
+        const track: CustomTrack = { id: uid('trk'), name: clean, startISO: null, journal: [] };
+        mutate((prev) => ({
+          ...prev,
+          secret: { ...prev.secret, customTracks: [...prev.secret.customTracks, track] },
+        }));
+      },
+      removeCustomTrack: (id) => {
+        mutate((prev) => ({
+          ...prev,
+          secret: {
+            ...prev.secret,
+            customTracks: prev.secret.customTracks.filter((track) => track.id !== id),
+          },
+        }));
+      },
+      addCoachMessage: (role, text) => {
+        const message: CoachMessage = {
+          id: uid('msg'),
+          role,
+          text,
+          atISO: new Date().toISOString(),
+        };
+        mutate((prev) => ({ ...prev, coachMessages: [...prev.coachMessages, message] }));
+      },
+      clearCoach: () => {
+        mutate((prev) => ({ ...prev, coachMessages: [] }));
       },
       setCalendarDay: (day, value) => {
         mutate((prev) => ({
@@ -289,6 +360,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           items: [],
           tab,
           custom: true,
+          mode: tab === 'knowledge' ? 'guide' : 'catalog',
         };
         mutate((prev) => ({ ...prev, customSections: [...prev.customSections, section] }));
       },

@@ -7,6 +7,8 @@ const ICONS: Record<string, string> = {
   index: '📚',
   learn: '🎯',
   health: '⚡',
+  knowledge: '📖',
+  coach: '🤖',
 };
 
 type RailProps = {

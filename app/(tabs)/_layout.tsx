@@ -37,28 +37,42 @@ export default function TabLayout() {
                   height: Platform.OS === 'web' ? 64 : isTablet ? 84 : 78,
                   paddingTop: 8,
                 },
-            tabBarLabelStyle: { fontSize: isTablet ? 13 : 11, fontWeight: '700', letterSpacing: 0.3 },
+            tabBarLabelStyle: { fontSize: isTablet ? 12 : 10, fontWeight: '700', letterSpacing: 0.2 },
             tabBarItemStyle: { minHeight: 48 },
           }}>
           <Tabs.Screen
             name="index"
             options={{
               title: 'Книги',
-              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 17 }}>📚</Text>,
+              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 16 }}>📚</Text>,
             }}
           />
           <Tabs.Screen
             name="learn"
             options={{
-              title: 'Обучение',
-              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 17 }}>🎯</Text>,
+              title: 'Учёба',
+              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 16 }}>🎯</Text>,
             }}
           />
           <Tabs.Screen
             name="health"
             options={{
-              title: 'Здоровье',
-              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 17 }}>⚡</Text>,
+              title: 'Тело',
+              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 16 }}>⚡</Text>,
+            }}
+          />
+          <Tabs.Screen
+            name="knowledge"
+            options={{
+              title: 'Знания',
+              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 16 }}>📖</Text>,
+            }}
+          />
+          <Tabs.Screen
+            name="coach"
+            options={{
+              title: 'AI',
+              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 16 }}>🤖</Text>,
             }}
           />
         </Tabs>

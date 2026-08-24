@@ -15,10 +15,12 @@ export function CatalogView({
   sections,
   searchHint,
   tab,
+  library,
 }: {
   sections: CatalogSection[];
   searchHint: string;
   tab: TabKey;
+  library?: boolean;
 }) {
   const { itemOf, sectionsFor, addCustomSection, removeCustomSection, addSectionItem, removeSectionItem } = useEngine();
   const { isTablet, cardWidth, gap } = useEngineLayout();
@@ -27,7 +29,9 @@ export function CatalogView({
   const [composer, setComposer] = useState<'section' | CatalogSection | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
   const [draftSub, setDraftSub] = useState('');
-  const [accent, setAccent] = useState<Accent>(tab === 'books' ? 'violet' : tab === 'learn' ? 'amber' : 'emerald');
+  const [accent, setAccent] = useState<Accent>(
+    tab === 'books' ? 'violet' : tab === 'learn' ? 'amber' : tab === 'knowledge' ? 'blue' : 'emerald',
+  );
 
   const merged = sectionsFor(tab, sections);
 
@@ -75,6 +79,7 @@ export function CatalogView({
         placeholderTextColor={colors.faint}
         style={[styles.search, isTablet && styles.searchTablet]}
       />
+      {library ? null : (
       <View style={[styles.filterWrap, isTablet && { height: 52 }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
           {FILTERS.map((key) => {
@@ -92,6 +97,7 @@ export function CatalogView({
           })}
         </ScrollView>
       </View>
+      )}
       {visible.map((section) => (
         <View key={section.id}>
           <SectionTitle
@@ -115,7 +121,7 @@ export function CatalogView({
                 <ItemCard
                   item={item}
                   index={index}
-                  guide={section.mode === 'guide'}
+                  guide={library || section.mode === 'guide'}
                   onRemove={item.custom ? () => removeSectionItem(section.id, item.id) : undefined}
                 />
               </View>

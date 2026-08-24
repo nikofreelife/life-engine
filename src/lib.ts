@@ -8,6 +8,8 @@ export const STATUS_LABEL: Record<Status, string> = {
   done: 'Сделано',
 };
 
+export const DAYS_PER_MONTH = 30.437;
+
 export function todayKey(date = new Date()): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -45,13 +47,16 @@ export function emptyState(): EngineState {
       pinHash: null,
       thcStartISO: null,
       thcDailyCost: 0,
+      thcMonthlyCost: 0,
       thcJournal: [],
       nofapStartISO: null,
       nofapJournal: [],
+      customTracks: [],
       calendar: {},
     },
     customSections: [],
     extraItems: {},
+    coachMessages: [],
   };
 }
 
@@ -75,12 +80,37 @@ export function streakFor(habit: Habit, from = new Date()): number {
 
 export function elapsedParts(startISO: string | null, now = Date.now()) {
   if (!startISO) return { days: 0, hours: 0, minutes: 0, totalHours: 0, ms: 0 };
-  const ms = Math.max(0, now - new Date(startISO).getTime());
+  const start = new Date(startISO).getTime();
+  if (Number.isNaN(start)) return { days: 0, hours: 0, minutes: 0, totalHours: 0, ms: 0 };
+  const ms = Math.max(0, now - start);
   const days = Math.floor(ms / 86400000);
   const hours = Math.floor((ms % 86400000) / 3600000);
   const minutes = Math.floor((ms % 3600000) / 60000);
   const totalHours = Math.floor(ms / 3600000);
   return { days, hours, minutes, totalHours, ms };
+}
+
+export function money(n: number) {
+  return Math.round(n).toLocaleString('ru-RU');
+}
+
+export function thcMonthlyFromSecret(monthly: number, daily: number) {
+  if (monthly > 0) return monthly;
+  if (daily > 0) return daily * DAYS_PER_MONTH;
+  return 0;
+}
+
+export function thcSavings(monthly: number, startISO: string | null, now = Date.now()) {
+  const elapsed = elapsedParts(startISO, now);
+  const perDay = monthly / DAYS_PER_MONTH;
+  const saved = (elapsed.ms / 86400000) * perDay;
+  return {
+    saved,
+    perDay,
+    month: monthly,
+    sixMonths: monthly * 6,
+    year: monthly * 12,
+  };
 }
 
 export function monthMatrix(year: number, month: number): (string | null)[][] {
@@ -95,4 +125,10 @@ export function monthMatrix(year: number, month: number): (string | null)[][] {
   const rows: (string | null)[][] = [];
   for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
   return rows;
+}
+
+export function shiftDays(days: number, from = new Date()) {
+  const next = new Date(from);
+  next.setDate(next.getDate() + days);
+  return next;
 }

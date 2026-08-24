@@ -1,7 +1,7 @@
 import type { Accent } from './theme';
 
 export type Status = 'planned' | 'progress' | 'done';
-export type TabKey = 'books' | 'learn' | 'health';
+export type TabKey = 'books' | 'learn' | 'health' | 'knowledge';
 
 export type CatalogItem = {
   id: string;
@@ -55,14 +55,30 @@ export type CalendarDay = {
   note: string;
 };
 
+export type CustomTrack = {
+  id: string;
+  name: string;
+  startISO: string | null;
+  journal: JournalEntry[];
+};
+
 export type SecretState = {
   pinHash: string | null;
   thcStartISO: string | null;
   thcDailyCost: number;
+  thcMonthlyCost: number;
   thcJournal: JournalEntry[];
   nofapStartISO: string | null;
   nofapJournal: JournalEntry[];
+  customTracks: CustomTrack[];
   calendar: Record<string, CalendarDay>;
+};
+
+export type CoachMessage = {
+  id: string;
+  role: 'user' | 'coach';
+  text: string;
+  atISO: string;
 };
 
 export type EngineState = {
@@ -71,4 +87,5 @@ export type EngineState = {
   secret: SecretState;
   customSections: CatalogSection[];
   extraItems: Record<string, CatalogItem[]>;
+  coachMessages: CoachMessage[];
 };
