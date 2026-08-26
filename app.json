@@ -11,9 +11,15 @@
       "supportsTablet": true,
       "requireFullScreen": false,
       "bundleIdentifier": "com.lifeengine.app",
-      "buildNumber": "5",
+      "buildNumber": "7",
+      "icon": {
+        "light": "./assets/images/icon.png",
+        "dark": "./assets/images/icon.png",
+        "tinted": "./assets/images/ios-tinted.png"
+      },
       "infoPlist": {
         "CFBundleDisplayName": "Life Engine",
+        "CFBundleIconName": "AppIcon",
         "ITSAppUsesNonExemptEncryption": false,
         "UIDeviceFamily": [1, 2],
         "UIRequiresFullScreen": false,

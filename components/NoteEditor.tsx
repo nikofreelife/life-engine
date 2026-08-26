@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -9,8 +8,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { NativeSheet } from './NativeSheet';
 import { colors } from '../src/theme';
 
 type Props = {
@@ -23,7 +22,6 @@ type Props = {
 };
 
 export function NoteEditor({ visible, title, value, placeholder, onChange, onClose }: Props) {
-  const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(value);
 
   useEffect(() => {
@@ -36,11 +34,11 @@ export function NoteEditor({ visible, title, value, placeholder, onChange, onClo
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={save}>
+    <NativeSheet visible={visible} onClose={save}>
       <KeyboardAvoidingView
         style={styles.root}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.top, { paddingTop: Math.max(insets.top, 18) }]}>
+        <View style={[styles.top, { paddingTop: 8 }]}>
           <Pressable onPress={onClose} hitSlop={12}>
             <Text style={styles.ghost}>Закрыть</Text>
           </Pressable>
@@ -63,7 +61,7 @@ export function NoteEditor({ visible, title, value, placeholder, onChange, onClo
           autoFocus
         />
       </KeyboardAvoidingView>
-    </Modal>
+    </NativeSheet>
   );
 }
 
@@ -78,13 +76,7 @@ const styles = StyleSheet.create({
   kicker: { color: colors.muted, fontWeight: '800', letterSpacing: 1.6, fontSize: 12 },
   ghost: { color: colors.muted, fontWeight: '700', fontSize: 16 },
   save: { color: colors.emerald, fontWeight: '800', fontSize: 16 },
-  title: {
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 16,
-    lineHeight: 28,
-  },
+  title: { color: colors.text, fontSize: 22, fontWeight: '700', marginBottom: 16, lineHeight: 28 },
   input: {
     flex: 1,
     backgroundColor: colors.card,

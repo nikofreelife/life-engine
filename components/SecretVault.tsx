@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
+  ActionSheetIOS,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,15 +12,19 @@ import {
 } from 'react-native';
 
 import { DateStartPicker } from './DateStartPicker';
+import { NativeSheet } from './NativeSheet';
 import { RelapseModal } from './RelapseModal';
-import { elapsedParts, money, monthMatrix, thcMonthlyFromSecret, thcSavings, todayKey } from '../src/lib';
+import { SwipeDeleteRow } from './SwipeDeleteRow';
+import { hapticMedium, hapticSuccess, hapticWarning } from '../src/haptics';
+
+import { elapsedParts, money, monthMatrix, thcSavings, todayKey } from '../src/lib';
 import { useEngineLayout } from '../src/layout';
 import { useEngine } from '../src/store';
 import { colors } from '../src/theme';
-import type { DayState, JournalKind } from '../src/types';
+import { CUSTOM_SCALES, TRACK_TEMPLATES, scalePercent, templateOf } from '../src/tracks';
+import type { AbstinenceTrack, DayState, JournalKind } from '../src/types';
 
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-const MILESTONES = [30, 60, 90];
 const KIND_LABEL: Record<JournalKind, string> = {
   note: 'заметка',
   craving: 'тяга',
@@ -28,20 +34,24 @@ const KIND_LABEL: Record<JournalKind, string> = {
 
 function Counter({
   title,
+  name,
   accent,
   startISO,
   track,
   extra,
   fill,
   onDelete,
+  onOpenStats,
 }: {
   title: string;
+  name: string;
   accent: string;
   startISO: string | null;
   track: string;
   extra?: ReactNode;
   fill?: boolean;
-  onDelete?: () => void;
+  onDelete: () => void;
+  onOpenStats: () => void;
 }) {
   const { setTrackStart, relapse } = useEngine();
   const [, setTick] = useState(0);
@@ -53,23 +63,65 @@ function Counter({
   }, []);
   const t = elapsedParts(startISO);
 
+  const onLongPress = () => {
+    void hapticMedium();
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: name,
+          options: ['Отмена', 'Подробная статистика', 'Удалить трекер'],
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: 2,
+          userInterfaceStyle: 'dark',
+        },
+        (index) => {
+          if (index === 1) onOpenStats();
+          if (index === 2) onDelete();
+        },
+      );
+      return;
+    }
+    onDelete();
+  };
+
   return (
     <View style={[styles.card, { borderColor: accent }, fill && { flex: 1 }]}>
-      <Text style={[styles.cardKicker, { color: accent }]}>{title}</Text>
-      {startISO ? (
-        <>
-          <Text style={styles.big}>
-            {t.days}
-            <Text style={styles.unit}> дн</Text>
-          </Text>
-          <Text style={styles.clock}>
-            {t.hours} ч {t.minutes} мин без срыва
-          </Text>
-          <Text style={styles.started}>Старт: {new Date(startISO).toLocaleString('ru-RU')}</Text>
-        </>
-      ) : (
-        <Text style={styles.clock}>Счётчик ещё не запущен</Text>
-      )}
+      <View style={styles.headRow}>
+        <Pressable onLongPress={onLongPress} delayLongPress={420} style={styles.headCopy}>
+          <Text style={[styles.cardKicker, { color: accent }]}>{title}</Text>
+          {startISO ? (
+            <>
+              <Text style={styles.big}>
+                {t.days}
+                <Text style={styles.unit}> дн</Text>
+              </Text>
+              <Text style={styles.clock}>
+                {t.hours} ч {t.minutes} мин без срыва
+              </Text>
+              <Text style={styles.started}>Старт: {new Date(startISO).toLocaleString('ru-RU')}</Text>
+            </>
+          ) : (
+            <Text style={styles.clock}>Счётчик ещё не запущен</Text>
+          )}
+        </Pressable>
+        <View style={styles.headActions}>
+          <Pressable
+            onPress={onOpenStats}
+            onLongPress={onLongPress}
+            hitSlop={8}
+            accessibilityLabel="Подробная статистика"
+            style={styles.iconBtn}>
+            <Text style={styles.iconBtnText}>📊</Text>
+          </Pressable>
+          <Pressable
+            onPress={onDelete}
+            hitSlop={8}
+            accessibilityLabel="Удалить трекер"
+            style={styles.iconBtn}>
+            <Text style={styles.iconBtnText}>🗑️</Text>
+          </Pressable>
+        </View>
+      </View>
       <View style={styles.actionCol}>
         <Pressable
           onPress={() => setPicker(true)}
@@ -80,7 +132,10 @@ function Counter({
         <View style={styles.actionRow}>
           {startISO ? null : (
             <Pressable
-              onPress={() => setTrackStart(track, new Date().toISOString())}
+            onPress={() => {
+              void hapticSuccess();
+              setTrackStart(track, new Date().toISOString());
+            }}
               hitSlop={8}
               style={({ pressed }) => [styles.ghostBtn, pressed && styles.pressed]}>
               <Text style={styles.ghostBtnText}>Старт сейчас</Text>
@@ -93,24 +148,25 @@ function Counter({
             <Text style={styles.relapseText}>Я сорвался</Text>
           </Pressable>
         </View>
-        {onDelete ? (
-          <Pressable onPress={onDelete} hitSlop={8}>
-            <Text style={styles.entryDelete}>удалить счётчик</Text>
-          </Pressable>
-        ) : null}
       </View>
       {extra}
       <DateStartPicker
         visible={picker}
         value={startISO ? new Date(startISO) : new Date()}
         onClose={() => setPicker(false)}
-        onSave={(date) => setTrackStart(track, date.toISOString())}
+        onSave={(date) => {
+          void hapticSuccess();
+          setTrackStart(track, date.toISOString());
+        }}
       />
       <RelapseModal
         visible={relapseOpen}
         title={title}
         onClose={() => setRelapseOpen(false)}
-        onSave={(reason) => relapse(track, reason)}
+        onSave={(reason) => {
+          void hapticWarning();
+          relapse(track, reason);
+        }}
       />
     </View>
   );
@@ -175,143 +231,276 @@ function JournalBox({
   );
 }
 
+function ScaleBar({
+  label,
+  days,
+  daysToFull,
+  milestones,
+  color,
+}: {
+  label: string;
+  days: number;
+  daysToFull: number;
+  milestones?: number[];
+  color: string;
+}) {
+  const pct = scalePercent(days, daysToFull);
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.label}>
+        {label} · {Math.round(pct)}%
+      </Text>
+      <View style={styles.barTrack}>
+        <View style={[styles.barFill, { width: `${pct}%`, backgroundColor: color }]} />
+      </View>
+      {milestones?.length ? (
+        <View style={styles.miles}>
+          {milestones.map((m) => (
+            <Text key={m} style={[styles.mile, days >= m && { color }]}>
+              {m}д {days >= m ? '✓' : ''}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function TrackExtras({ track }: { track: AbstinenceTrack }) {
+  const { patchTrack, addJournal, removeJournal } = useEngine();
+  const tpl = templateOf(track.kind);
+  const accent = colors[tpl?.accent ?? 'amber'];
+  const elapsed = elapsedParts(track.startISO);
+  const savings = thcSavings(track.monthlyCost, track.startISO);
+  const showMoney = track.kind === 'custom' || Boolean(tpl?.money);
+  const scales = tpl?.scales ?? CUSTOM_SCALES;
+
+  return (
+    <View style={{ marginTop: 16, gap: 10 }}>
+      {showMoney ? (
+        <>
+          <Text style={styles.label}>{tpl?.moneyLabel || 'Траты в месяц (₽ / $)'}</Text>
+          <TextInput
+            keyboardType="numeric"
+            value={track.monthlyCost ? String(Math.round(track.monthlyCost)) : ''}
+            onChangeText={(v) => patchTrack(track.id, { monthlyCost: Number(v.replace(/[^\d.]/g, '')) || 0 })}
+            placeholder="0"
+            placeholderTextColor={colors.faint}
+            style={styles.money}
+          />
+          <Text style={styles.saved}>
+            Сэкономлено за стрик: {money(savings.saved)} · {elapsed.days}д {elapsed.hours}ч
+          </Text>
+          <View style={styles.proj}>
+            <Text style={styles.projItem}>1 мес · {money(savings.month)}</Text>
+            <Text style={styles.projItem}>6 мес · {money(savings.sixMonths)}</Text>
+            <Text style={styles.projItem}>1 год · {money(savings.year)}</Text>
+          </View>
+        </>
+      ) : null}
+      {scales.map((scale) => (
+        <ScaleBar
+          key={scale.label}
+          label={scale.label}
+          days={elapsed.days}
+          daysToFull={scale.daysToFull}
+          milestones={scale.milestones}
+          color={accent}
+        />
+      ))}
+      <JournalBox
+        placeholder="Тяга, срыв, победа или заметка"
+        entries={track.journal}
+        onAdd={(kind, text) => addJournal(track.id, kind, text)}
+        onRemove={(id) => removeJournal(track.id, id)}
+      />
+    </View>
+  );
+}
+
+function TrackStatsModal({
+  track,
+  visible,
+  onClose,
+  onDelete,
+}: {
+  track: AbstinenceTrack | null;
+  visible: boolean;
+  onClose: () => void;
+  onDelete: () => void;
+}) {
+  if (!track) return null;
+  const tpl = templateOf(track.kind);
+  const title = `${tpl?.emoji ?? '➕'} ${track.name}`;
+  const t = elapsedParts(track.startISO);
+
+  return (
+    <NativeSheet visible={visible} onClose={onClose}>
+      <View style={styles.statsRoot}>
+        <View style={styles.statsTop}>
+          <Text style={styles.statsKicker}>ПОДРОБНАЯ СТАТИСТИКА</Text>
+          <Pressable onPress={onClose} hitSlop={10}>
+            <Text style={styles.ghostBtnText}>Закрыть</Text>
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={styles.statsBody} keyboardShouldPersistTaps="handled">
+          <Text style={styles.hero}>{title}</Text>
+          {track.startISO ? (
+            <Text style={styles.clock}>
+              {t.days} дн · {t.hours} ч {t.minutes} мин · старт {new Date(track.startISO).toLocaleString('ru-RU')}
+            </Text>
+          ) : (
+            <Text style={styles.clock}>Счётчик ещё не запущен</Text>
+          )}
+          <TrackExtras track={track} />
+          <Pressable onPress={onDelete} style={styles.deleteTracker}>
+            <Text style={styles.deleteTrackerText}>🗑️  Удалить трекер</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    </NativeSheet>
+  );
+}
+
+function DeleteConfirmModal({
+  name,
+  visible,
+  onCancel,
+  onConfirm,
+}: {
+  name: string;
+  visible: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <NativeSheet visible={visible} onClose={onCancel} height="auto">
+      <View style={styles.confirmCard}>
+        <Text style={styles.confirmTitle}>Удалить счетчик {name}?</Text>
+        <Text style={styles.confirmLead}>Вся история и текущий стрик будут сброшены.</Text>
+        <View style={styles.confirmRow}>
+          <Pressable onPress={onCancel} style={styles.confirmGhost}>
+            <Text style={styles.ghostBtnText}>Отмена</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              void hapticWarning();
+              onConfirm();
+            }}
+            style={styles.confirmDelete}>
+            <Text style={styles.confirmDeleteText}>Удалить</Text>
+          </Pressable>
+        </View>
+      </View>
+    </NativeSheet>
+  );
+}
+
 export function SecretVault() {
-  const { state, patchSecret, addJournal, removeJournal, setCalendarDay, addCustomTrack, removeCustomTrack } =
-    useEngine();
+  const { state, setCalendarDay, addCustomTrack, removeTrack, restoreTemplate } = useEngine();
   const { isTablet } = useEngineLayout();
   const secret = state.secret;
+  const tracks = secret.tracks ?? [];
   const now = new Date();
   const matrix = useMemo(() => monthMatrix(now.getFullYear(), now.getMonth()), [now.getFullYear(), now.getMonth()]);
   const [selected, setSelected] = useState(todayKey());
   const [customName, setCustomName] = useState('');
+  const [customMoney, setCustomMoney] = useState('');
+  const [statsId, setStatsId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AbstinenceTrack | null>(null);
   const selectedDay = secret.calendar[selected];
-  const nofap = elapsedParts(secret.nofapStartISO);
-  const dopamine = Math.min(100, (nofap.days / 90) * 100);
-  const monthly = thcMonthlyFromSecret(secret.thcMonthlyCost, secret.thcDailyCost);
-  const savings = thcSavings(monthly, secret.thcStartISO);
+  const missingTemplates = TRACK_TEMPLATES.filter((tpl) => !tracks.some((track) => track.kind === tpl.kind));
+  const statsTrack = tracks.find((track) => track.id === statsId) ?? null;
+
+  const requestDelete = (track: AbstinenceTrack) => {
+    setStatsId(null);
+    setPendingDelete(track);
+  };
+
+  const commitDelete = () => {
+    const id = pendingDelete?.id;
+    setPendingDelete(null);
+    setStatsId(null);
+    if (id) removeTrack(id);
+  };
 
   return (
+    <>
     <ScrollView
       contentContainerStyle={styles.page}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled">
       <Text style={[styles.hero, isTablet && { fontSize: 36 }]}>Чистый Разум</Text>
       <Text style={[styles.lead, isTablet && { fontSize: 16, lineHeight: 24 }]}>
-        Hardcore Mode · только ты видишь этот контур.
+        Hardcore Mode · шаблоны воздержания, экономия и восстановление. Укажи прошедшую дату — счётчик пересчитается сразу.
       </Text>
 
-      <View style={isTablet ? styles.split : undefined}>
-        <Counter
-          fill={isTablet}
-          title="Отказ от ТГК / каннабиноидов"
-          accent={colors.crimson}
-          startISO={secret.thcStartISO}
-          track="thc"
-          extra={
-            <View style={{ marginTop: 16, gap: 10 }}>
-              <Text style={styles.label}>Траты на ТГК в месяц (₽ / $)</Text>
-              <TextInput
-                keyboardType="numeric"
-                value={monthly ? String(Math.round(monthly)) : ''}
-                onChangeText={(v) => patchSecret({ thcMonthlyCost: Number(v.replace(/[^\d.]/g, '')) || 0, thcDailyCost: 0 })}
-                placeholder="0"
-                placeholderTextColor={colors.faint}
-                style={styles.money}
+      <View style={[styles.trackList, isTablet && styles.split]}>
+        {tracks.map((track) => {
+          const tpl = templateOf(track.kind);
+          return (
+            <SwipeDeleteRow key={track.id} fill={isTablet} onDeletePress={() => requestDelete(track)}>
+              <Counter
+                fill={isTablet}
+                title={`${tpl?.emoji ?? '➕'} ${track.name}`}
+                name={track.name}
+                accent={colors[tpl?.accent ?? 'amber']}
+                startISO={track.startISO}
+                track={track.id}
+                onDelete={() => requestDelete(track)}
+                onOpenStats={() => setStatsId(track.id)}
+                extra={<TrackExtras track={track} />}
               />
-              <Text style={styles.saved}>
-                Сэкономлено за стрик: {money(savings.saved)} · {elapsedParts(secret.thcStartISO).days}д{' '}
-                {elapsedParts(secret.thcStartISO).hours}ч
-              </Text>
-              <View style={styles.proj}>
-                <Text style={styles.projItem}>1 мес · {money(savings.month)}</Text>
-                <Text style={styles.projItem}>6 мес · {money(savings.sixMonths)}</Text>
-                <Text style={styles.projItem}>1 год · {money(savings.year)}</Text>
-              </View>
-              <JournalBox
-                placeholder="Тяга, срыв или заметка по ТГК"
-                entries={secret.thcJournal}
-                onAdd={(kind, text) => addJournal('thc', kind, text)}
-                onRemove={(id) => removeJournal('thc', id)}
-              />
-            </View>
-          }
-        />
-
-        <Counter
-          fill={isTablet}
-          title="NoFap / Semen Retention"
-          accent={colors.violet}
-          startISO={secret.nofapStartISO}
-          track="nofap"
-          extra={
-            <View style={{ marginTop: 16, gap: 10 }}>
-              <Text style={styles.label}>Дофаминовое восстановление</Text>
-              <View style={styles.barTrack}>
-                <View style={[styles.barFill, { width: `${dopamine}%` }]} />
-              </View>
-              <View style={styles.miles}>
-                {MILESTONES.map((m) => (
-                  <Text key={m} style={[styles.mile, nofap.days >= m && styles.mileOn]}>
-                    {m}д {nofap.days >= m ? '✓' : ''}
-                  </Text>
-                ))}
-              </View>
-              <JournalBox
-                placeholder="Тяга, победа или срыв"
-                entries={secret.nofapJournal}
-                onAdd={(kind, text) => addJournal('nofap', kind, text)}
-                onRemove={(id) => removeJournal('nofap', id)}
-              />
-            </View>
-          }
-        />
+            </SwipeDeleteRow>
+          );
+        })}
       </View>
 
-      {(secret.customTracks ?? []).map((track) => (
-        <Counter
-          key={track.id}
-          title={track.name}
-          accent={colors.amber}
-          startISO={track.startISO}
-          track={track.id}
-          onDelete={() =>
-            Alert.alert('Удалить счётчик?', track.name, [
-              { text: 'Отмена', style: 'cancel' },
-              { text: 'Удалить', style: 'destructive', onPress: () => removeCustomTrack(track.id) },
-            ])
-          }
-          extra={
-            <View style={{ marginTop: 16 }}>
-              <JournalBox
-                placeholder="Заметка, тяга или срыв"
-                entries={track.journal}
-                onAdd={(kind, text) => addJournal(track.id, kind, text)}
-                onRemove={(id) => removeJournal(track.id, id)}
-              />
-            </View>
-          }
-        />
-      ))}
-
       <View style={styles.addTrack}>
-        <Text style={styles.label}>Свой счётчик воздержания</Text>
-        <View style={styles.addRow}>
-          <TextInput
-            value={customName}
-            onChangeText={setCustomName}
-            placeholder="Сахар, алко, вейп, фастфуд..."
-            placeholderTextColor={colors.faint}
-            style={[styles.money, { flex: 1 }]}
-          />
-          <Pressable
-            onPress={() => {
-              addCustomTrack(customName);
-              setCustomName('');
-            }}
-            style={styles.addBtn}>
-            <Text style={styles.addBtnText}>+ Добавить</Text>
-          </Pressable>
-        </View>
+        <Text style={styles.label}>+ Добавить своё воздержание</Text>
+        {tracks.length === 0 ? (
+          <Text style={styles.clock}>
+            Пока пусто. Нажми «+ Добавить своё воздержание» — шаблон или счётчик с нуля.
+          </Text>
+        ) : null}
+        {missingTemplates.length ? (
+          <>
+            <Text style={styles.subLabel}>Быстрый шаблон</Text>
+            {missingTemplates.map((tpl) => (
+              <Pressable key={tpl.kind} onPress={() => restoreTemplate(tpl.kind)} style={styles.tplCard}>
+                <Text style={styles.tplTitle}>
+                  {tpl.emoji} {tpl.name}
+                </Text>
+                <Text style={styles.tplHint}>{tpl.scales.map((scale) => scale.label).join(' · ')}</Text>
+              </Pressable>
+            ))}
+          </>
+        ) : null}
+        <Text style={styles.subLabel}>Или создать с нуля</Text>
+        <TextInput
+          value={customName}
+          onChangeText={setCustomName}
+          placeholder="Название: игромания, соцсети..."
+          placeholderTextColor={colors.faint}
+          style={styles.money}
+        />
+        <TextInput
+          value={customMoney}
+          onChangeText={setCustomMoney}
+          keyboardType="numeric"
+          placeholder="Траты в месяц (необязательно)"
+          placeholderTextColor={colors.faint}
+          style={styles.money}
+        />
+        <Pressable
+          onPress={() => {
+            addCustomTrack(customName, Number(customMoney.replace(/[^\d.]/g, '')) || 0);
+            setCustomName('');
+            setCustomMoney('');
+          }}
+          style={styles.addBtn}>
+          <Text style={styles.addBtnText}>+ Добавить своё воздержание</Text>
+        </Pressable>
       </View>
 
       <View style={styles.card}>
@@ -410,11 +599,27 @@ export function SecretVault() {
         />
       </View>
     </ScrollView>
+    <TrackStatsModal
+      track={statsTrack}
+      visible={Boolean(statsTrack)}
+      onClose={() => setStatsId(null)}
+      onDelete={() => {
+        if (statsTrack) requestDelete(statsTrack);
+      }}
+    />
+    <DeleteConfirmModal
+      visible={Boolean(pendingDelete)}
+      name={pendingDelete?.name ?? ''}
+      onCancel={() => setPendingDelete(null)}
+      onConfirm={commitDelete}
+    />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   page: { paddingBottom: 56, gap: 18 },
+  trackList: { gap: 18 },
   split: { flexDirection: 'row', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' },
   hero: { color: colors.text, fontSize: 28, fontWeight: '800', letterSpacing: 0.4 },
   lead: { color: colors.muted, fontSize: 13, lineHeight: 19, marginBottom: 4 },
@@ -427,6 +632,20 @@ const styles = StyleSheet.create({
     minWidth: 280,
     flexGrow: 1,
   },
+  headRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  headCopy: { flex: 1, minWidth: 0 },
+  headActions: { flexDirection: 'row', gap: 6 },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: '#0F141F',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBtnText: { fontSize: 16 },
   cardKicker: { fontSize: 12, fontWeight: '800', letterSpacing: 1.4, marginBottom: 8 },
   big: { color: colors.text, fontSize: 44, fontWeight: '800', fontVariant: ['tabular-nums'] },
   unit: { fontSize: 18, color: colors.muted, fontWeight: '600' },
@@ -461,6 +680,18 @@ const styles = StyleSheet.create({
   },
   ghostBtnText: { color: colors.text, fontWeight: '800' },
   label: { color: colors.muted, fontSize: 12, fontWeight: '700' },
+  subLabel: { color: colors.faint, fontSize: 11, fontWeight: '800', letterSpacing: 0.4, marginTop: 4 },
+  tplCard: {
+    backgroundColor: '#0F141F',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  tplTitle: { color: colors.text, fontWeight: '800', fontSize: 13 },
+  tplHint: { color: colors.muted, fontSize: 12, lineHeight: 17 },
   money: {
     backgroundColor: '#0F141F',
     borderWidth: 1,
@@ -558,6 +789,61 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 14,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   addBtnText: { color: colors.bg, fontWeight: '800', fontSize: 13 },
+  statsRoot: { flex: 1, backgroundColor: colors.bg },
+  statsTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
+  statsKicker: { color: colors.crimson, fontWeight: '800', letterSpacing: 1.6, fontSize: 11 },
+  statsBody: { paddingHorizontal: 20, paddingBottom: 40, gap: 12 },
+  deleteTracker: {
+    marginTop: 12,
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.crimson,
+    backgroundColor: 'rgba(239,68,68,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteTrackerText: { color: colors.crimson, fontWeight: '800', fontSize: 15 },
+  confirmRoot: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
+  confirmBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,0,0,0.64)',
+  },
+  confirmCard: {
+    backgroundColor: colors.card,
+    paddingHorizontal: 22,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  confirmTitle: { color: colors.text, fontSize: 18, fontWeight: '800' },
+  confirmLead: { color: colors.muted, marginTop: 8, lineHeight: 20 },
+  confirmRow: { flexDirection: 'row', gap: 10, marginTop: 18 },
+  confirmGhost: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmDelete: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: colors.crimson,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmDeleteText: { color: colors.white, fontWeight: '800', fontSize: 15 },
 });

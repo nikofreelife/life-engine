@@ -1,8 +1,11 @@
+import { Platform, type TextStyle, type ViewStyle } from 'react-native';
+
 export const colors = {
-  bg: '#0B0D12',
-  card: '#131722',
-  cardElevated: '#181D2A',
-  border: '#1E293B',
+  bg: '#0A0C10',
+  card: '#141721',
+  cardElevated: '#1A1E29',
+  border: 'rgba(30, 36, 51, 0.5)',
+  borderSolid: '#1E2433',
   text: '#F8FAFC',
   muted: '#94A3B8',
   faint: '#64748B',
@@ -13,6 +16,8 @@ export const colors = {
   crimson: '#EF4444',
   cyan: '#22D3EE',
   white: '#FFFFFF',
+  glass: 'rgba(14, 17, 24, 0.62)',
+  backdrop: 'rgba(0, 0, 0, 0.55)',
 } as const;
 
 export type Accent = keyof Pick<
@@ -29,10 +34,78 @@ export const accentGlow: Record<Accent, string> = {
 };
 
 export const radius = {
-  sm: 10,
-  md: 16,
+  sm: 12,
+  md: 18,
   lg: 22,
-  xl: 28,
+  xl: 24,
+  pill: 18,
+};
+
+export const spring = {
+  stiffness: 300,
+  damping: 20,
+  mass: 0.7,
+};
+
+export const fonts = Platform.select({
+  ios: 'System',
+  android: 'sans-serif',
+  default:
+    '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", sans-serif',
+});
+
+const base: TextStyle = {
+  fontFamily: fonts,
+};
+
+export const type = {
+  largeTitle: {
+    ...base,
+    color: colors.text,
+    fontSize: 34,
+    lineHeight: 41,
+    fontWeight: '700',
+    letterSpacing: 0.37,
+  } satisfies TextStyle,
+  title: {
+    ...base,
+    color: colors.text,
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '700',
+    letterSpacing: 0.35,
+  } satisfies TextStyle,
+  headline: {
+    ...base,
+    color: colors.text,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: '600',
+    letterSpacing: -0.41,
+  } satisfies TextStyle,
+  footnote: {
+    ...base,
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '400',
+    letterSpacing: -0.08,
+  } satisfies TextStyle,
+};
+
+export const cardShadow: ViewStyle = {
+  shadowColor: '#000',
+  shadowOpacity: 0.5,
+  shadowRadius: 12,
+  shadowOffset: { width: 0, height: 8 },
+  elevation: 10,
+};
+
+export const cardSurface: ViewStyle = {
+  backgroundColor: colors.card,
+  borderWidth: 1,
+  borderColor: colors.border,
+  borderRadius: radius.lg,
 };
 
 export const phoneMaxWidth = 430;

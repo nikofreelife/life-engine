@@ -81,8 +81,34 @@ function paint(size) {
   return rgba;
 }
 
-function write(name, size) {
-  writeFileSync(join(outDir, name), encodePng(size, size, paint(size)));
+function paintTinted(size) {
+  const rgba = Buffer.alloc(size * size * 4);
+  const cx = (size - 1) / 2;
+  const cy = (size - 1) / 2;
+  const rMark = size * 0.28;
+  const rInner = size * 0.12;
+  const ringW = size * 0.05;
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const dx = x - cx;
+      const dy = y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      let v = 0;
+      if (Math.abs(dist - rMark) < ringW) v = 255;
+      if (dist < rInner) v = 255;
+      const i = (y * size + x) * 4;
+      rgba[i] = v;
+      rgba[i + 1] = v;
+      rgba[i + 2] = v;
+      rgba[i + 3] = 255;
+    }
+  }
+  return rgba;
+}
+
+function write(name, size, painter = paint) {
+  writeFileSync(join(outDir, name), encodePng(size, size, painter(size)));
 }
 
 write('icon.png', 1024);
@@ -91,4 +117,5 @@ write('favicon.png', 48);
 write('android-icon-foreground.png', 432);
 write('android-icon-background.png', 432);
 write('android-icon-monochrome.png', 432);
+write('ios-tinted.png', 1024, paintTinted);
 console.log('icons written');

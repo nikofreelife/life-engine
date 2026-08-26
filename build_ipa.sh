@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Life Engine v1.0 — unsigned iOS IPA builder
 # On macOS + Xcode: compiles a real unsigned .ipa
-# On Windows/Linux: exports the JS bundle, generates the native ios/ project,
-# and packages LifeEngine.ipa from the compiled .app if a toolchain is present.
+# On Windows: exits — Sideloadly needs a Mach-O from GitHub Actions.
 
 set -euo pipefail
 
@@ -20,6 +19,14 @@ echo "════════════════════════�
 
 if ! command -v node >/dev/null 2>&1; then
   echo "ERROR: Node.js is required."
+  exit 1
+fi
+
+if ! command -v xcodebuild >/dev/null 2>&1 && [ -z "${EXPO_TOKEN:-}" ]; then
+  echo "ERROR: this machine has no Xcode, so a Sideloadly-installable IPA cannot be packed here."
+  echo "       Sideloadly's 'no default case defined' means the IPA has no Mach-O binary."
+  echo "       Push to GitHub — Actions workflow 'Build Sideload IPA' compiles on macOS."
+  echo "       Artifact: Actions → LifeEngine-sideload. Release: v1.0.7-ipa"
   exit 1
 fi
 
@@ -114,64 +121,5 @@ if [ -n "${EXPO_TOKEN:-}" ]; then
   exit 0
 fi
 
-echo "→ no Xcode on this machine; packaging unsigned IPA shell from prebuild + JS bundle"
-STAGING="$ROOT/build/Life Engine.app"
-rm -rf "$STAGING"
-mkdir -p "$STAGING"
-
-cat > "$STAGING/Info.plist" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleDevelopmentRegion</key><string>ru</string>
-  <key>CFBundleDisplayName</key><string>Life Engine</string>
-  <key>CFBundleExecutable</key><string>LifeEngine</string>
-  <key>CFBundleIdentifier</key><string>com.lifeengine.app</string>
-  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-  <key>CFBundleName</key><string>Life Engine</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0.0</string>
-  <key>CFBundleVersion</key><string>2</string>
-  <key>LSRequiresIPhoneOS</key><true/>
-  <key>UIDeviceFamily</key>
-  <array>
-    <integer>1</integer>
-    <integer>2</integer>
-  </array>
-  <key>UIRequiresFullScreen</key><false/>
-  <key>UILaunchStoryboardName</key><string>SplashScreen</string>
-  <key>UIRequiredDeviceCapabilities</key>
-  <array><string>arm64</string></array>
-  <key>MinimumOSVersion</key><string>15.1</string>
-  <key>UISupportedInterfaceOrientations</key>
-  <array>
-    <string>UIInterfaceOrientationPortrait</string>
-    <string>UIInterfaceOrientationLandscapeLeft</string>
-    <string>UIInterfaceOrientationLandscapeRight</string>
-  </array>
-  <key>UISupportedInterfaceOrientations~ipad</key>
-  <array>
-    <string>UIInterfaceOrientationPortrait</string>
-    <string>UIInterfaceOrientationPortraitUpsideDown</string>
-    <string>UIInterfaceOrientationLandscapeLeft</string>
-    <string>UIInterfaceOrientationLandscapeRight</string>
-  </array>
-</dict>
-</plist>
-PLIST
-
-cp -R "$ROOT/dist-ios/." "$STAGING/bundle" 2>/dev/null || true
-cp "$ROOT/assets/images/icon.png" "$STAGING/icon.png" 2>/dev/null || true
-if [ -d "$ROOT/ios" ]; then
-  cp -R "$ROOT/ios" "$STAGING/native-project"
-fi
-printf 'Life Engine v1.0 universal (iPhone + iPad). Compile on macOS with Xcode via ./build_ipa.sh for a device-bootable binary.\n' > "$STAGING/README.txt"
-printf '#!/usr/bin/true\n' > "$STAGING/LifeEngine"
-chmod +x "$STAGING/LifeEngine" || true
-
-package_app "$STAGING"
-echo
-echo "NOTE: This host has no Xcode. The IPA contains the JS bundle + native project."
-echo "      Re-run ./build_ipa.sh on a Mac to produce a device-bootable unsigned binary."
-exit 0
+echo "ERROR: xcodebuild did not produce a device .app."
+exit 1

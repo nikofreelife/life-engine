@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AddSectionCard, ItemCard, SectionTitle } from './ItemCard';
+import { NativeSheet } from './NativeSheet';
+import { PressScale } from './PressScale';
 import { useAuth } from '../src/auth';
 import { splitByAge } from '../src/age';
 import { STATUS_LABEL } from '../src/lib';
@@ -27,7 +29,7 @@ export function CatalogView({
   const { itemOf, sectionsFor, addCustomSection, removeCustomSection, addSectionItem, removeSectionItem } = useEngine();
   const { user } = useAuth();
   const age = user?.age ?? 0;
-  const { isTablet, cardWidth, gap } = useEngineLayout();
+  const { isTablet } = useEngineLayout();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>('all');
   const [composer, setComposer] = useState<'section' | CatalogSection | null>(null);
@@ -105,9 +107,8 @@ export function CatalogView({
       {visible.map((section) => {
         const split = splitByAge(section.items, age, section.minAge);
         const groups: Array<{ label?: string; items: typeof section.items }> = [
-          { label: 'Высший приоритет на данный момент', items: split.priority },
+          { label: 'ВЫСШИЙ ПРИОРИТЕТ ДЛЯ ТВОЕГО ВОЗРАСТА', items: split.priority },
           { items: split.current },
-          { label: 'На будущее', items: split.future },
         ];
         return (
           <View key={section.id}>
@@ -130,13 +131,13 @@ export function CatalogView({
               group.items.length ? (
                 <View key={`${section.id}-${group.label ?? 'now'}-${groupIndex}`}>
                   {group.label ? (
-                    <Text style={[styles.ageLabel, group.label === 'На будущее' && styles.ageLabelFuture]}>
+                    <Text style={styles.ageLabel}>
                       {group.label}
                     </Text>
                   ) : null}
-                  <View style={[styles.grid, { gap }]}>
+                  <View style={styles.grid}>
                     {group.items.map((item, index) => (
-                      <View key={item.id} style={{ width: cardWidth }}>
+                      <View key={item.id} style={styles.cell}>
                         <ItemCard
                           item={item}
                           index={index}
@@ -158,47 +159,46 @@ export function CatalogView({
         <Text style={styles.empty}>Ничего не найдено. Смени фильтр или запрос.</Text>
       ) : null}
 
-      <Modal visible={composer !== null} animationType="fade" transparent onRequestClose={closeComposer}>
-        <View style={styles.modalBack}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>{composer === 'section' ? 'Новый раздел' : 'Новый пункт'}</Text>
-            <TextInput
-              value={draftTitle}
-              onChangeText={setDraftTitle}
-              placeholder={composer === 'section' ? 'Название раздела' : 'Название'}
-              placeholderTextColor={colors.faint}
-              style={styles.modalInput}
-              autoFocus
-            />
-            <TextInput
-              value={draftSub}
-              onChangeText={setDraftSub}
-              placeholder={composer === 'section' ? 'Короткое описание' : 'Подзаголовок (необязательно)'}
-              placeholderTextColor={colors.faint}
-              style={styles.modalInput}
-            />
-            {composer === 'section' ? (
-              <View style={styles.accentRow}>
-                {ACCENTS.map((key) => (
-                  <Pressable
-                    key={key}
-                    onPress={() => setAccent(key)}
-                    style={[styles.accent, { backgroundColor: colors[key] }, accent === key && styles.accentOn]}
-                  />
-                ))}
-              </View>
-            ) : null}
-            <View style={styles.modalActions}>
-              <Pressable onPress={closeComposer} style={styles.modalGhost}>
-                <Text style={styles.modalGhostText}>Отмена</Text>
-              </Pressable>
-              <Pressable onPress={submitComposer} style={styles.modalOk}>
-                <Text style={styles.modalOkText}>Создать</Text>
-              </Pressable>
+      <NativeSheet visible={composer !== null} onClose={closeComposer} height="auto">
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>{composer === 'section' ? 'Новый раздел' : 'Новый пункт'}</Text>
+          <TextInput
+            value={draftTitle}
+            onChangeText={setDraftTitle}
+            placeholder={composer === 'section' ? 'Название раздела' : 'Название'}
+            placeholderTextColor={colors.faint}
+            style={styles.modalInput}
+            autoFocus
+          />
+          <TextInput
+            value={draftSub}
+            onChangeText={setDraftSub}
+            placeholder={composer === 'section' ? 'Короткое описание' : 'Подзаголовок (необязательно)'}
+            placeholderTextColor={colors.faint}
+            style={styles.modalInput}
+          />
+          {composer === 'section' ? (
+            <View style={styles.accentRow}>
+              {ACCENTS.map((key) => (
+                <PressScale
+                  key={key}
+                  haptic="light"
+                  onPress={() => setAccent(key)}
+                  style={[styles.accent, { backgroundColor: colors[key] }, accent === key && styles.accentOn]}
+                />
+              ))}
             </View>
+          ) : null}
+          <View style={styles.modalActions}>
+            <PressScale haptic="light" onPress={closeComposer} style={styles.modalGhost}>
+              <Text style={styles.modalGhostText}>Отмена</Text>
+            </PressScale>
+            <PressScale haptic="medium" onPress={submitComposer} style={styles.modalOk}>
+              <Text style={styles.modalOkText}>Создать</Text>
+            </PressScale>
           </View>
         </View>
-      </Modal>
+      </NativeSheet>
     </View>
   );
 }
@@ -232,7 +232,25 @@ const styles = StyleSheet.create({
   filterOn: { backgroundColor: colors.cardElevated, borderColor: colors.violet },
   filterText: { color: colors.muted, fontSize: 12, fontWeight: '700' },
   filterTextOn: { color: colors.text },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  grid: Platform.select({
+    web: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+      gap: 16,
+      width: '100%',
+      minWidth: 0,
+    },
+    default: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 16,
+      width: '100%',
+    },
+  }) as object,
+  cell: Platform.select({
+    web: { minWidth: 0, width: '100%', maxWidth: '100%' },
+    default: { flexGrow: 1, flexBasis: 300, minWidth: 280, maxWidth: '100%' },
+  }) as object,
   ageLabel: {
     color: colors.amber,
     fontSize: 11,
@@ -242,7 +260,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 4,
   },
-  ageLabelFuture: { color: colors.crimson },
   empty: { color: colors.muted, textAlign: 'center', marginTop: 28 },
   modalBack: {
     flex: 1,
@@ -255,8 +272,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 22,
     gap: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   modalTitle: { color: colors.text, fontSize: 20, fontWeight: '800' },
   modalInput: {

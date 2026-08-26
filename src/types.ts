@@ -35,9 +35,13 @@ export type ItemState = {
   extraTags: string[];
 };
 
+export type HabitSlot = 'morning' | 'day' | 'evening';
+
 export type Habit = {
   id: string;
   name: string;
+  emoji?: string;
+  slot?: HabitSlot;
   createdAt: string;
   completions: Record<string, boolean>;
 };
@@ -59,10 +63,22 @@ export type CalendarDay = {
   note: string;
 };
 
+export type TrackKind = 'thc' | 'nofap' | 'nicotine' | 'alcohol' | 'sugar' | 'custom';
+
 export type CustomTrack = {
   id: string;
   name: string;
   startISO: string | null;
+  journal: JournalEntry[];
+  monthlyCost?: number;
+};
+
+export type AbstinenceTrack = {
+  id: string;
+  kind: TrackKind;
+  name: string;
+  startISO: string | null;
+  monthlyCost: number;
   journal: JournalEntry[];
 };
 
@@ -75,6 +91,7 @@ export type SecretState = {
   nofapStartISO: string | null;
   nofapJournal: JournalEntry[];
   customTracks: CustomTrack[];
+  tracks: AbstinenceTrack[];
   calendar: Record<string, CalendarDay>;
 };
 
@@ -92,6 +109,22 @@ export type Ageable = {
   priorityMax?: number;
 };
 
+export type KnowledgeSection = {
+  heading?: string;
+  body: string;
+};
+
+export type KnowledgeFactor = Ageable & {
+  id: string;
+  emoji: string;
+  title: string;
+  description: string;
+  accent: Accent;
+  badge?: string;
+  group?: string;
+  sections: KnowledgeSection[];
+};
+
 export type KnowledgeTopic = Ageable & {
   id: string;
   title: string;
@@ -101,13 +134,24 @@ export type KnowledgeTopic = Ageable & {
   when: string;
 };
 
-export type KnowledgeFactor = Ageable & {
+export type VideoWatchStatus = 'planned' | 'watched';
+
+export type BreathPace = 'slow' | 'normal' | 'fast';
+
+export type BreathLog = {
   id: string;
-  emoji: string;
-  title: string;
-  description: string;
-  accent: Accent;
-  topics: KnowledgeTopic[];
+  atISO: string;
+  sessionId: string;
+  round: number;
+  retentionSec: number;
+  breaths: number;
+  pace: BreathPace;
+};
+
+export type VideoInsight = {
+  text: string;
+  source: 'ai' | 'local';
+  atISO: string;
 };
 
 export type CoachMessage = {
@@ -124,4 +168,7 @@ export type EngineState = {
   customSections: CatalogSection[];
   extraItems: Record<string, CatalogItem[]>;
   coachMessages: CoachMessage[];
+  videoInsights: Record<string, VideoInsight>;
+  videoWatch: Record<string, VideoWatchStatus>;
+  breathLogs: BreathLog[];
 };

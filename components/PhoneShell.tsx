@@ -1,51 +1,44 @@
 import { type ReactNode } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useEngineLayout } from '../src/layout';
 import { colors } from '../src/theme';
 
 export function PhoneShell({ children }: { children: ReactNode }) {
-  const { isTablet, maxContent } = useEngineLayout();
-
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <View style={[styles.stage, isTablet && { maxWidth: maxContent + 80 }]}>
-        <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-          {children}
-        </SafeAreaView>
-      </View>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+        {children}
+      </SafeAreaView>
     </View>
   );
 }
 
 export function ContentWidth({ children }: { children: ReactNode }) {
-  const { pad, maxContent, isTablet } = useEngineLayout();
-  return (
-    <View
-      style={{
-        width: '100%',
-        maxWidth: isTablet ? maxContent : undefined,
-        alignSelf: 'center',
-        paddingHorizontal: pad,
-      }}>
-      {children}
-    </View>
-  );
+  return <View style={styles.content}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
-    alignItems: 'center',
+    overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? ({ width: '100vw', height: '100vh' } as object)
+      : { width: '100%', height: '100%' }),
   },
-  stage: {
+  safe: {
     flex: 1,
-    width: '100%',
     backgroundColor: colors.bg,
+    minWidth: 0,
+    minHeight: 0,
   },
-  safe: { flex: 1, backgroundColor: colors.bg },
+  content: {
+    width: '100%',
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 24,
+  },
 });

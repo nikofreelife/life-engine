@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { NativeSheet } from './NativeSheet';
 import { colors } from '../src/theme';
 
 type Props = {
@@ -31,9 +31,9 @@ export function RelapseModal({ visible, title, onClose, onSave }: Props) {
   const clean = reason.trim();
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <NativeSheet visible={visible} onClose={onClose}>
       <KeyboardAvoidingView
-        style={[styles.root, { paddingTop: Math.max(insets.top, 18), paddingBottom: Math.max(insets.bottom, 18) }]}
+        style={[styles.root, { paddingTop: 8, paddingBottom: Math.max(insets.bottom, 18) }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Text style={styles.kicker}>ФИКСАЦИЯ СРЫВА</Text>
         <Text style={styles.title}>{title ?? 'Я сорвался'}</Text>
@@ -65,7 +65,7 @@ export function RelapseModal({ visible, title, onClose, onSave }: Props) {
           </Pressable>
         </View>
       </KeyboardAvoidingView>
-    </Modal>
+    </NativeSheet>
   );
 }
 

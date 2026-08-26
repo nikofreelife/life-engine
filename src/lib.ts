@@ -1,4 +1,4 @@
-import type { EngineState, Habit, ItemState, Status } from './types';
+import type { EngineState, Habit, HabitSlot, ItemState, Status } from './types';
 
 export const STORAGE_KEY = 'life-engine-v1';
 export const ACCOUNTS_KEY = 'life-engine-accounts';
@@ -32,6 +32,21 @@ export function todayKey(date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Milliseconds until the next local midnight (00:00). */
+export function msUntilNextMidnight(from = new Date()): number {
+  const next = new Date(from);
+  next.setHours(24, 0, 0, 0);
+  return Math.max(0, next.getTime() - from.getTime());
+}
+
+export function formatHms(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hh = String(Math.floor(total / 3600)).padStart(2, '0');
+  const mm = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+  const ss = String(total % 60).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
 export function uid(prefix = 'id'): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -54,9 +69,9 @@ export function emptyState(): EngineState {
   return {
     items: {},
     habits: [
-      seedHabit('Холодный душ'),
-      seedHabit('Чтение 20 минут'),
-      seedHabit('Движение / тренировка'),
+      seedHabit('Холодный душ', '🚿', 'morning'),
+      seedHabit('Чтение 20 минут', '📖', 'evening'),
+      seedHabit('Движение / тренировка', '🏃', 'day'),
     ],
     secret: {
       pinHash: null,
@@ -67,16 +82,42 @@ export function emptyState(): EngineState {
       nofapStartISO: null,
       nofapJournal: [],
       customTracks: [],
+      tracks: [],
       calendar: {},
     },
     customSections: [],
     extraItems: {},
     coachMessages: [],
+    videoInsights: {},
+    videoWatch: {},
+    breathLogs: [],
   };
 }
 
-function seedHabit(name: string): Habit {
-  return { id: uid('habit'), name, createdAt: new Date().toISOString(), completions: {} };
+function seedHabit(name: string, emoji: string, slot: HabitSlot): Habit {
+  return {
+    id: uid('habit'),
+    name,
+    emoji,
+    slot,
+    createdAt: new Date().toISOString(),
+    completions: {},
+  };
+}
+
+const SEED_HABIT_LOOK: Record<string, { emoji: string; slot: HabitSlot }> = {
+  'Холодный душ': { emoji: '🚿', slot: 'morning' },
+  'Чтение 20 минут': { emoji: '📖', slot: 'evening' },
+  'Движение / тренировка': { emoji: '🏃', slot: 'day' },
+};
+
+export function normalizeHabit(habit: Habit): Habit {
+  const inferred = SEED_HABIT_LOOK[habit.name] ?? { emoji: '✨', slot: 'day' as HabitSlot };
+  return {
+    ...habit,
+    emoji: habit.emoji || inferred.emoji,
+    slot: habit.slot ?? inferred.slot,
+  };
 }
 
 export function streakFor(habit: Habit, from = new Date()): number {

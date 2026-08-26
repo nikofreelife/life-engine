@@ -48,11 +48,27 @@ jobs:
           swift --version
           xcrun --sdk iphoneos --show-sdk-path
 
+      - name: Generate AppIcon PNGs
+        run: node scripts/make-icons.mjs
+
       - name: Expo prebuild iOS
         env:
           CI: 1
           EXPO_NO_GIT_STATUS: 1
         run: npx expo prebuild --platform ios --non-interactive
+
+      - name: Ensure AppIcon asset catalog
+        run: |
+          set -euo pipefail
+          SET="$(find ios -type d -name 'AppIcon.appiconset' | head -n 1)"
+          echo "AppIcon set: ${SET:-missing}"
+          test -n "$SET"
+          if ! ls "$SET"/*.png >/dev/null 2>&1; then
+            echo "AppIcon catalog had no PNGs — seeding 1024 icon"
+            cp assets/images/icon.png "$SET/AppIcon.png"
+            printf '%s\n' '{"images":[{"filename":"AppIcon.png","idiom":"universal","platform":"ios","size":"1024x1024"}],"info":{"author":"xcode","version":1}}' > "$SET/Contents.json"
+          fi
+          ls -la "$SET"
 
       - name: CocoaPods
         working-directory: ios
@@ -104,7 +120,10 @@ jobs:
             DEVELOPMENT_TEAM="" \
             TARGETED_DEVICE_FAMILY=1,2 \
             ARCHS=arm64 \
-            ONLY_ACTIVE_ARCH=NO
+            ONLY_ACTIVE_ARCH=NO \
+            ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon \
+            INFOPLIST_KEY_CFBundleDisplayName="Life Engine" \
+            INFOPLIST_KEY_CFBundleIconName=AppIcon
 
       - name: Package IPA
         run: |
@@ -112,12 +131,27 @@ jobs:
           APP="$(find "$RUNNER_TEMP/DerivedData" -name '*.app' -path '*/Release-iphoneos/*' | head -n 1)"
           echo "Found app: $APP"
           test -d "$APP"
+          EXEC="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
+          echo "Executable: $EXEC"
+          file "$APP/$EXEC"
+          file "$APP/$EXEC" | grep -q 'Mach-O'
+          test -f "$APP/Assets.car" || ls -la "$APP"/AppIcon* || {
+            echo "AppIcon / Assets.car missing from .app" >&2
+            ls -la "$APP"
+            exit 1
+          }
           rm -rf Payload
           mkdir -p Payload
           ditto "$APP" "Payload/LifeEngine.app"
           zip -qry LifeEngine.ipa Payload
           ls -lh LifeEngine.ipa
-          unzip -l LifeEngine.ipa | head
+          BYTES="$(stat -f%z LifeEngine.ipa)"
+          echo "IPA bytes: $BYTES"
+          if [ "$BYTES" -lt 8000000 ]; then
+            echo "IPA is too small to be a real device binary ($BYTES bytes)" >&2
+            exit 1
+          fi
+          unzip -l LifeEngine.ipa | head -n 40
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
@@ -129,10 +163,11 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0-ipad
-          name: Life Engine v1.0 iPad
+          tag_name: v1.0.7-ipa
+          name: Life Engine v1.0.7 IPA
           body: |
             Unsigned universal IPA (iPhone + iPad) for Sideloadly / AltStore.
-            Landscape uses the sidebar; portrait uses tabs and a 2-column grid.
+            Real arm64 Mach-O from Xcode 26, with AppIcon on the home screen.
+            Landscape uses the sidebar; portrait uses tabs.
           files: LifeEngine.ipa
           fail_on_unmatched_files: true

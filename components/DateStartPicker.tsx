@@ -1,7 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEffect, useState } from 'react';
 import {
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -10,6 +9,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { NativeSheet } from './NativeSheet';
 
 import { shiftDays } from '../src/lib';
 import { colors } from '../src/theme';
@@ -37,93 +38,126 @@ function applyTime(base: Date, picked: Date) {
   return clampPast(next);
 }
 
-const PRESETS = [
-  { label: 'Сейчас', days: 0 },
-  { label: '3 дня назад', days: -3 },
-  { label: 'Неделя', days: -7 },
-  { label: 'Месяц', days: -30 },
+function monthsAgo(n: number) {
+  const next = new Date();
+  next.setMonth(next.getMonth() - n);
+  return clampPast(next);
+}
+
+const PRESETS: Array<{ label: string; apply: () => Date }> = [
+  { label: 'Сейчас', apply: () => new Date() },
+  { label: '3 дня назад', apply: () => shiftDays(-3) },
+  { label: 'Неделя', apply: () => shiftDays(-7) },
+  { label: 'Месяц', apply: () => shiftDays(-30) },
+  { label: '3 месяца', apply: () => monthsAgo(3) },
+  { label: 'Год назад', apply: () => shiftDays(-365) },
 ];
 
 export function DateStartPicker({ visible, value, onClose, onSave }: Props) {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(clampPast(value));
+  const [androidMode, setAndroidMode] = useState<'date' | 'time' | null>(null);
 
   useEffect(() => {
-    if (visible) setDraft(clampPast(value));
+    if (!visible) {
+      setAndroidMode(null);
+      return;
+    }
+    setDraft(clampPast(value));
+    if (Platform.OS === 'android') setAndroidMode('date');
   }, [value, visible]);
 
-  const commit = () => {
-    onSave(clampPast(draft));
+  const commit = (next = draft) => {
+    onSave(clampPast(next));
     onClose();
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}>
-      <View style={[styles.root, { paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 16) }]}>
+    <NativeSheet visible={visible} onClose={onClose}>
+      <View style={[styles.root, { paddingTop: 8, paddingBottom: Math.max(insets.bottom, 16) }]}>
         <View style={styles.head}>
           <Pressable onPress={onClose} hitSlop={12}>
             <Text style={styles.ghost}>Закрыть</Text>
           </Pressable>
           <Text style={styles.kicker}>СТАРТ ЦИКЛА</Text>
-          <Pressable onPress={commit} hitSlop={12}>
+          <Pressable onPress={() => commit()} hitSlop={12}>
             <Text style={styles.save}>Поставить</Text>
           </Pressable>
         </View>
-        <Text style={styles.title}>Дата и время</Text>
+        <Text style={styles.title}>Календарь</Text>
         <Text style={styles.lead}>
-          Выбери любую прошедшую точку. Счётчик дней, часов и экономии пересчитается с неё, а не с текущего момента.
+          Любая прошедшая дата. Дни, часы и экономия пересчитаются сразу с выбранного момента.
         </Text>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <View style={styles.presets}>
             {PRESETS.map((item) => (
-              <Pressable
-                key={item.label}
-                onPress={() => setDraft(clampPast(shiftDays(item.days)))}
-                style={styles.preset}>
+              <Pressable key={item.label} onPress={() => setDraft(clampPast(item.apply()))} style={styles.preset}>
                 <Text style={styles.presetText}>{item.label}</Text>
               </Pressable>
             ))}
           </View>
           <Text style={styles.preview}>{draft.toLocaleString('ru-RU')}</Text>
-          <Text style={styles.section}>Календарь</Text>
-          <View style={styles.pickerBox}>
-            <DateTimePicker
-              value={draft}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
-              locale="ru-RU"
-              maximumDate={new Date()}
-              accentColor={colors.emerald}
-              themeVariant="dark"
-              onChange={(_, date) => {
-                if (date) setDraft((prev) => applyDate(prev, date));
-              }}
-            />
-          </View>
-          <Text style={styles.section}>Время</Text>
-          <View style={styles.pickerBox}>
-            <DateTimePicker
-              value={draft}
-              mode="time"
-              display="spinner"
-              locale="ru-RU"
-              is24Hour
-              themeVariant="dark"
-              textColor={colors.text}
-              accentColor={colors.emerald}
-              style={{ height: 180 }}
-              onChange={(_, date) => {
-                if (date) setDraft((prev) => applyTime(prev, date));
-              }}
-            />
-          </View>
+          {Platform.OS === 'android' ? (
+            <View style={styles.androidRow}>
+              <Pressable onPress={() => setAndroidMode('date')} style={styles.androidBtn}>
+                <Text style={styles.androidBtnText}>Открыть календарь</Text>
+              </Pressable>
+              <Pressable onPress={() => setAndroidMode('time')} style={styles.androidBtn}>
+                <Text style={styles.androidBtnText}>Время</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.section}>Календарь</Text>
+              <View style={styles.pickerBox}>
+                <DateTimePicker
+                  value={draft}
+                  mode="date"
+                  display="inline"
+                  locale="ru-RU"
+                  maximumDate={new Date()}
+                  accentColor={colors.emerald}
+                  themeVariant="dark"
+                  onChange={(_, date) => {
+                    if (date) setDraft((prev) => applyDate(prev, date));
+                  }}
+                />
+              </View>
+              <Text style={styles.section}>Время</Text>
+              <View style={styles.pickerBox}>
+                <DateTimePicker
+                  value={draft}
+                  mode="time"
+                  display="spinner"
+                  locale="ru-RU"
+                  is24Hour
+                  themeVariant="dark"
+                  textColor={colors.text}
+                  accentColor={colors.emerald}
+                  style={{ height: 180 }}
+                  onChange={(_, date) => {
+                    if (date) setDraft((prev) => applyTime(prev, date));
+                  }}
+                />
+              </View>
+            </>
+          )}
         </ScrollView>
+        {Platform.OS === 'android' && androidMode ? (
+          <DateTimePicker
+            value={draft}
+            mode={androidMode}
+            display={androidMode === 'date' ? 'calendar' : 'default'}
+            maximumDate={new Date()}
+            onChange={(event, date) => {
+              setAndroidMode(null);
+              if (event.type === 'dismissed' || !date) return;
+              setDraft((prev) => (androidMode === 'date' ? applyDate(prev, date) : applyTime(prev, date)));
+            }}
+          />
+        ) : null}
       </View>
-    </Modal>
+    </NativeSheet>
   );
 }
 
@@ -161,4 +195,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
   },
+  androidRow: { flexDirection: 'row', gap: 10 },
+  androidBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: colors.emerald,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  androidBtnText: { color: colors.bg, fontWeight: '800' },
 });

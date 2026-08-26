@@ -3,8 +3,9 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import Animated, { FadeInUp, LinearTransition } from 'react-native-reanimated';
 
 import { NoteEditor } from './NoteEditor';
+import { AgeBadges, AgeDisclaimer } from './AgeRecommend';
 import { useAuth } from '../src/auth';
-import { ageGate, lockLabel } from '../src/age';
+import { ageGate } from '../src/age';
 import { STATUS_LABEL } from '../src/lib';
 import { useEngine } from '../src/store';
 import { accentGlow, colors, type Accent } from '../src/theme';
@@ -34,18 +35,17 @@ export function ItemCard({
   const accent = colors[item.accent];
   const done = state.status === 'done';
   const notePreview = state.notes.trim();
-  const locked = gate.locked && !guide;
 
   return (
     <>
       <Animated.View
         entering={FadeInUp.delay(Math.min(index, 8) * 40).duration(380)}
         layout={LinearTransition.springify()}
-        style={[styles.card, { borderColor: colors.border, shadowColor: accent }, done && !guide ? styles.cardDone : null, gate.locked ? styles.cardLocked : null]}>
+        style={[styles.card, { borderColor: colors.border, shadowColor: accent }, done && !guide ? styles.cardDone : null]}>
         <View style={[styles.rail, { backgroundColor: accent, shadowColor: accent }]} />
         <View style={styles.body}>
           <View style={styles.row}>
-            {guide || locked ? (
+            {guide ? (
               <View style={[styles.guideMark, { backgroundColor: accentGlow[item.accent] }]} />
             ) : (
               <Pressable
@@ -62,25 +62,13 @@ export function ItemCard({
               <Text style={[styles.title, done && !guide ? styles.titleDone : null]}>{item.title}</Text>
               {item.subtitle ? <Text style={styles.subtitle}>{item.subtitle}</Text> : null}
               {item.helper ? <Text style={styles.helper}>{item.helper}</Text> : null}
-              {(gate.priority || gate.locked) ? (
-              <View style={styles.gateRow}>
-                {gate.priority ? (
-                  <View style={styles.priorityBadge}>
-                    <Text style={styles.priorityText}>Высший приоритет на данный момент</Text>
-                  </View>
-                ) : null}
-                {gate.locked && gate.minAge != null ? (
-                  <View style={styles.lockBadge}>
-                    <Text style={styles.lockText}>{lockLabel(gate.minAge)}</Text>
-                  </View>
-                ) : null}
-              </View>
-              ) : null}
+              <AgeBadges gate={gate} tone="mind" />
+              <AgeDisclaimer minAge={gate.minAge} tone="mind" />
               {item.body ? <Text style={styles.bodyText}>{item.body}</Text> : null}
             </View>
           </View>
 
-          {guide || locked ? null : (
+          {guide ? null : (
             <View style={styles.chips}>
               {STATUSES.map((status) => {
                 const active = state.status === status;
@@ -102,7 +90,7 @@ export function ItemCard({
                 <Text style={styles.tagText}>{tag}</Text>
               </View>
             ))}
-            {guide || locked ? null : (
+            {guide ? null : (
               <TextInput
                 value={tagDraft}
                 onChangeText={setTagDraft}
@@ -199,28 +187,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexDirection: 'row',
     minHeight: 168,
+    width: '100%',
+    minWidth: 0,
   },
   cardDone: { opacity: 0.82 },
-  cardLocked: { opacity: 0.8 },
-  gateRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  priorityBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.16)',
-    borderColor: colors.amber,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  priorityText: { color: colors.amber, fontSize: 10, fontWeight: '800' },
-  lockBadge: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderColor: colors.crimson,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  lockText: { color: colors.crimson, fontSize: 10, fontWeight: '800' },
   rail: { width: 3, shadowOpacity: 0.8, shadowRadius: 8 },
   body: { flex: 1, padding: 20, gap: 14 },
   row: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },

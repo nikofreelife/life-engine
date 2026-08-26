@@ -19,6 +19,7 @@ import {
   defaultItem,
   emptyState,
   hashPin,
+  normalizeHabit,
   todayKey,
   uid,
   userPinKey,
@@ -29,16 +30,22 @@ import type {
   CatalogItem,
   CatalogSection,
   CoachMessage,
-  CustomTrack,
   EngineState,
   Habit,
+  HabitSlot,
   ItemState,
   JournalEntry,
   JournalKind,
   SecretState,
   Status,
   TabKey,
+  TrackKind,
+  VideoInsight,
+  VideoWatchStatus,
+  AbstinenceTrack,
+  BreathLog,
 } from './types';
+import { makeTrack, migrateTracks } from './tracks';
 
 type EngineContextValue = {
   ready: boolean;
@@ -47,7 +54,7 @@ type EngineContextValue = {
   setItemStatus: (id: string, status: Status) => void;
   setItemNotes: (id: string, notes: string) => void;
   addItemTag: (id: string, tag: string) => void;
-  addHabit: (name: string) => void;
+  addHabit: (name: string, extras?: { emoji?: string; slot?: HabitSlot }) => void;
   removeHabit: (id: string) => void;
   toggleHabitDay: (id: string, day?: string) => void;
   setPin: (pin: string) => Promise<void>;
@@ -58,8 +65,13 @@ type EngineContextValue = {
   removeJournal: (track: string, id: string) => void;
   relapse: (track: string, reason: string) => void;
   setTrackStart: (track: string, iso: string) => void;
-  addCustomTrack: (name: string) => void;
-  removeCustomTrack: (id: string) => void;
+  addCustomTrack: (name: string, monthlyCost?: number) => void;
+  removeTrack: (id: string) => void;
+  restoreTemplate: (kind: TrackKind) => void;
+  patchTrack: (id: string, patch: Partial<AbstinenceTrack>) => void;
+  setVideoInsight: (id: string, value: VideoInsight) => void;
+  setVideoWatch: (id: string, status: VideoWatchStatus) => void;
+  addBreathLog: (log: BreathLog) => void;
   addCoachMessage: (role: 'user' | 'coach', text: string) => void;
   clearCoach: () => void;
   setCalendarDay: (day: string, value: CalendarDay) => void;
@@ -73,44 +85,47 @@ type EngineContextValue = {
 
 const EngineContext = createContext<EngineContextValue | null>(null);
 
+function mapTrack(prev: EngineState, id: string, fn: (track: AbstinenceTrack) => AbstinenceTrack): EngineState {
+  return {
+    ...prev,
+    secret: {
+      ...prev.secret,
+      tracks: (prev.secret.tracks ?? []).map((track) => (track.id === id ? fn(track) : track)),
+    },
+  };
+}
+
+function removeTrackFromState(prev: EngineState, id: string): EngineState {
+  const tracks = prev.secret.tracks ?? [];
+  const removed = tracks.find((track) => String(track.id) === String(id));
+  if (!removed) return prev;
+  return {
+    ...prev,
+    secret: {
+      ...prev.secret,
+      tracks: tracks.filter((track) => String(track.id) !== String(id)),
+      customTracks:
+        removed.kind === 'custom'
+          ? (prev.secret.customTracks ?? []).filter((item) => String(item.id) !== String(id))
+          : prev.secret.customTracks,
+      ...(removed.kind === 'thc'
+        ? { thcStartISO: null, thcDailyCost: 0, thcMonthlyCost: 0, thcJournal: [] }
+        : {}),
+      ...(removed.kind === 'nofap' ? { nofapStartISO: null, nofapJournal: [] } : {}),
+    },
+  };
+}
+
 function patchTrackJournal(
   prev: EngineState,
   track: string,
   fn: (list: JournalEntry[]) => JournalEntry[],
 ): EngineState {
-  if (track === 'thc') {
-    return { ...prev, secret: { ...prev.secret, thcJournal: fn(prev.secret.thcJournal) } };
-  }
-  if (track === 'nofap') {
-    return { ...prev, secret: { ...prev.secret, nofapJournal: fn(prev.secret.nofapJournal) } };
-  }
-  return {
-    ...prev,
-    secret: {
-      ...prev.secret,
-      customTracks: (prev.secret.customTracks ?? []).map((item) =>
-        item.id === track ? { ...item, journal: fn(item.journal) } : item,
-      ),
-    },
-  };
+  return mapTrack(prev, track, (item) => ({ ...item, journal: fn(item.journal) }));
 }
 
 function patchTrackStart(prev: EngineState, track: string, iso: string): EngineState {
-  if (track === 'thc') {
-    return { ...prev, secret: { ...prev.secret, thcStartISO: iso } };
-  }
-  if (track === 'nofap') {
-    return { ...prev, secret: { ...prev.secret, nofapStartISO: iso } };
-  }
-  return {
-    ...prev,
-    secret: {
-      ...prev.secret,
-      customTracks: (prev.secret.customTracks ?? []).map((item) =>
-        item.id === track ? { ...item, startISO: iso } : item,
-      ),
-    },
-  };
+  return mapTrack(prev, track, (item) => ({ ...item, startISO: iso }));
 }
 
 async function readPinHash(userId: string): Promise<string | null> {
@@ -143,6 +158,10 @@ function hydrateState(parsed: EngineState, pinHash: string | null): EngineState 
     customSections: parsed.customSections ?? [],
     extraItems: parsed.extraItems ?? {},
     coachMessages: parsed.coachMessages ?? [],
+    videoInsights: parsed.videoInsights ?? {},
+    videoWatch: parsed.videoWatch ?? {},
+    breathLogs: parsed.breathLogs ?? [],
+    habits: (parsed.habits ?? emptyState().habits).map(normalizeHabit),
     secret: {
       ...emptyState().secret,
       ...parsed.secret,
@@ -150,6 +169,13 @@ function hydrateState(parsed: EngineState, pinHash: string | null): EngineState 
         ?? ((parsed.secret?.thcDailyCost ?? 0) > 0 ? parsed.secret.thcDailyCost * 30.437 : 0),
       customTracks: parsed.secret?.customTracks ?? [],
       pinHash: pinHash ?? parsed.secret?.pinHash ?? null,
+      tracks: migrateTracks({
+        ...emptyState().secret,
+        ...parsed.secret,
+        thcMonthlyCost: parsed.secret?.thcMonthlyCost
+          ?? ((parsed.secret?.thcDailyCost ?? 0) > 0 ? parsed.secret.thcDailyCost * 30.437 : 0),
+        customTracks: parsed.secret?.customTracks ?? [],
+      }),
     },
   };
 }
@@ -189,9 +215,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         if (raw) {
           setState(hydrateState(JSON.parse(raw) as EngineState, pinHash));
         } else {
+          const base = emptyState();
           setState({
-            ...emptyState(),
-            secret: { ...emptyState().secret, pinHash },
+            ...base,
+            secret: { ...base.secret, pinHash, tracks: migrateTracks(base.secret) },
           });
         }
         loadedId.current = user.id;
@@ -259,12 +286,14 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         if (current.extraTags.includes(clean)) return;
         patchItem(id, { extraTags: [...current.extraTags, clean] });
       },
-      addHabit: (name) => {
+      addHabit: (name, extras) => {
         const clean = name.trim();
         if (!clean) return;
         const habit: Habit = {
           id: uid('habit'),
           name: clean,
+          emoji: extras?.emoji?.trim() || '✨',
+          slot: extras?.slot ?? 'day',
           createdAt: new Date().toISOString(),
           completions: {},
         };
@@ -347,23 +376,46 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           };
         });
       },
-      addCustomTrack: (name) => {
+      addCustomTrack: (name, monthlyCost = 0) => {
         const clean = name.trim();
         if (!clean) return;
-        const track: CustomTrack = { id: uid('trk'), name: clean, startISO: null, journal: [] };
+        const track = makeTrack('custom', { id: uid('trk'), name: clean, monthlyCost });
         mutate((prev) => ({
           ...prev,
-          secret: { ...prev.secret, customTracks: [...prev.secret.customTracks, track] },
+          secret: { ...prev.secret, tracks: [...(prev.secret.tracks ?? []), track] },
         }));
       },
-      removeCustomTrack: (id) => {
-        mutate((prev) => ({
-          ...prev,
-          secret: {
-            ...prev.secret,
-            customTracks: prev.secret.customTracks.filter((track) => track.id !== id),
-          },
-        }));
+      removeTrack: (id) => {
+        mutate((prev) => {
+          const next = removeTrackFromState(prev, id);
+          if (user && next !== prev) {
+            void AsyncStorage.setItem(userStorageKey(user.id), JSON.stringify(next));
+          }
+          return next;
+        });
+      },
+      restoreTemplate: (kind) => {
+        mutate((prev) => {
+          if ((prev.secret.tracks ?? []).some((track) => track.kind === kind && track.kind !== 'custom')) {
+            return prev;
+          }
+          return {
+            ...prev,
+            secret: { ...prev.secret, tracks: [...(prev.secret.tracks ?? []), makeTrack(kind)] },
+          };
+        });
+      },
+      patchTrack: (id, patch) => {
+        mutate((prev) => mapTrack(prev, id, (track) => ({ ...track, ...patch, id: track.id, kind: track.kind })));
+      },
+      setVideoInsight: (id, value) => {
+        mutate((prev) => ({ ...prev, videoInsights: { ...prev.videoInsights, [id]: value } }));
+      },
+      setVideoWatch: (id, status) => {
+        mutate((prev) => ({ ...prev, videoWatch: { ...(prev.videoWatch ?? {}), [id]: status } }));
+      },
+      addBreathLog: (log) => {
+        mutate((prev) => ({ ...prev, breathLogs: [log, ...(prev.breathLogs ?? [])].slice(0, 200) }));
       },
       addCoachMessage: (role, text) => {
         const message: CoachMessage = {

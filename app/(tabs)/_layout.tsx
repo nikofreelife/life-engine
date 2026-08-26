@@ -1,29 +1,32 @@
 import { Tabs } from 'expo-router';
-import { Platform, Text, View } from 'react-native';
+import { View } from 'react-native';
 
 import { EngineHeader } from '@/components/EngineHeader';
+import { NativeTabBar } from '@/components/NativeTabBar';
 import { PhoneShell } from '@/components/PhoneShell';
 import { TabletRail } from '@/components/TabletRail';
-import { useEngineLayout } from '@/src/layout';
+import { RAIL_WIDTH, useEngineLayout } from '@/src/layout';
 import { colors } from '@/src/theme';
 
 export default function TabLayout() {
-  const { sidebar, isTablet } = useEngineLayout();
+  const { sidebar } = useEngineLayout();
 
   return (
     <PhoneShell>
       {sidebar ? null : <EngineHeader />}
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, flexDirection: sidebar ? 'row' : 'column', minWidth: 0, minHeight: 0 }}>
         <Tabs
-          tabBar={sidebar ? (props) => <TabletRail {...props} /> : undefined}
+          tabBar={(props) => (sidebar ? <TabletRail {...props} /> : <NativeTabBar {...props} />)}
           screenOptions={{
             headerShown: false,
+            tabBarHideOnKeyboard: true,
             tabBarPosition: sidebar ? 'left' : 'bottom',
-            tabBarActiveTintColor: colors.emerald,
-            tabBarInactiveTintColor: colors.faint,
+            sceneStyle: { backgroundColor: colors.bg, flex: 1, minWidth: 0 },
             tabBarStyle: sidebar
               ? {
-                  width: 248,
+                  width: RAIL_WIDTH,
+                  flexShrink: 0,
+                  position: 'relative',
                   backgroundColor: colors.card,
                   borderTopWidth: 0,
                   borderRightWidth: 1,
@@ -32,49 +35,18 @@ export default function TabLayout() {
                   shadowOpacity: 0,
                 }
               : {
-                  backgroundColor: colors.bg,
-                  borderTopColor: colors.border,
-                  height: Platform.OS === 'web' ? 64 : isTablet ? 84 : 78,
-                  paddingTop: 8,
+                  position: 'absolute',
+                  backgroundColor: 'transparent',
+                  borderTopWidth: 0,
+                  elevation: 0,
                 },
-            tabBarLabelStyle: { fontSize: isTablet ? 12 : 10, fontWeight: '700', letterSpacing: 0.2 },
-            tabBarItemStyle: { minHeight: 48 },
           }}>
-          <Tabs.Screen
-            name="index"
-            options={{
-              title: 'Книги',
-              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 16 }}>📚</Text>,
-            }}
-          />
-          <Tabs.Screen
-            name="learn"
-            options={{
-              title: 'Учёба',
-              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 16 }}>🎯</Text>,
-            }}
-          />
-          <Tabs.Screen
-            name="health"
-            options={{
-              title: 'Тело',
-              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 16 }}>⚡</Text>,
-            }}
-          />
-          <Tabs.Screen
-            name="knowledge"
-            options={{
-              title: 'Знания',
-              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 16 }}>📖</Text>,
-            }}
-          />
-          <Tabs.Screen
-            name="coach"
-            options={{
-              title: 'AI',
-              tabBarIcon: () => <Text style={{ fontSize: isTablet ? 22 : 16 }}>🤖</Text>,
-            }}
-          />
+          <Tabs.Screen name="index" options={{ title: 'Книги' }} />
+          <Tabs.Screen name="learn" options={{ title: 'Учёба' }} />
+          <Tabs.Screen name="health" options={{ title: 'Тело' }} />
+          <Tabs.Screen name="knowledge" options={{ title: 'Знания' }} />
+          <Tabs.Screen name="video" options={{ title: 'Видео' }} />
+          <Tabs.Screen name="coach" options={{ title: 'AI' }} />
         </Tabs>
       </View>
     </PhoneShell>

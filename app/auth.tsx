@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PressScale } from '@/components/PressScale';
 import { useAuth } from '@/src/auth';
-import { colors } from '@/src/theme';
+import { colors, fonts, radius, type } from '@/src/theme';
 
 export default function AuthScreen() {
   const { signIn, signUp, accounts, signInAccount } = useAuth();
@@ -106,9 +107,9 @@ export default function AuthScreen() {
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <Pressable onPress={submit} disabled={busy} style={[styles.submit, busy && { opacity: 0.6 }]}>
+          <PressScale onPress={submit} disabled={busy} haptic="medium" style={[styles.submit, busy && { opacity: 0.6 }]}>
             <Text style={styles.submitText}>{busy ? '…' : mode === 'in' ? 'Войти' : 'Создать аккаунт'}</Text>
-          </Pressable>
+          </PressScale>
 
           {localAccounts.length ? (
             <View style={styles.locals}>
@@ -130,9 +131,9 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 28, paddingTop: 48, maxWidth: 480, width: '100%', alignSelf: 'center' },
-  kicker: { color: colors.emerald, letterSpacing: 3.2, fontWeight: '800', fontSize: 12 },
-  title: { color: colors.text, fontSize: 32, fontWeight: '800', marginTop: 8 },
-  lead: { color: colors.muted, marginTop: 10, lineHeight: 22, marginBottom: 22 },
+  kicker: { color: colors.emerald, letterSpacing: 3.2, fontWeight: '600', fontSize: 13, fontFamily: fonts },
+  title: { ...type.largeTitle, marginTop: 8 },
+  lead: { ...type.footnote, marginTop: 10, lineHeight: 20, marginBottom: 22 },
   switch: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   switchBtn: {
     flex: 1,
@@ -151,7 +152,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 16,
+    borderRadius: 22,
     color: colors.text,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -175,7 +176,7 @@ const styles = StyleSheet.create({
   error: { color: colors.crimson, marginBottom: 12, fontWeight: '700' },
   submit: {
     minHeight: 52,
-    borderRadius: 16,
+    borderRadius: radius.md,
     backgroundColor: colors.emerald,
     alignItems: 'center',
     justifyContent: 'center',

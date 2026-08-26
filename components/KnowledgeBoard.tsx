@@ -1,22 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutAnimation,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
   UIManager,
   View,
 } from 'react-native';
-import Animated, { FadeIn, LinearTransition, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { FadeIn, LinearTransition, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { useAuth } from '../src/auth';
-import { ageGate, lockLabel, splitByAge } from '../src/age';
-import { KNOWLEDGE_FACTORS } from '../src/data/knowledge';
+import { ageGate } from '../src/age';
+import { KNOWLEDGE_FACTORS, KNOWLEDGE_GROUPS } from '../src/data/knowledge';
 import { useEngineLayout } from '../src/layout';
-import { accentGlow, colors, type Accent } from '../src/theme';
-import type { KnowledgeTopic } from '../src/types';
+import { accentGlow, colors, radius, spring, type, type Accent } from '../src/theme';
+import type { KnowledgeFactor } from '../src/types';
+import { PressScale } from './PressScale';
+import { hapticLight } from '../src/haptics';
+import { AgeBadges, AgeDisclaimer } from './AgeRecommend';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -24,92 +26,91 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 function animate() {
   LayoutAnimation.configureNext({
-    duration: 220,
+    duration: 380,
     create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
-    update: { type: LayoutAnimation.Types.easeInEaseOut },
+    update: { type: LayoutAnimation.Types.spring, springDamping: 0.82 },
     delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
   });
 }
 
-function TopicAccordion({
-  topic,
+function RichText({ text }: { text: string }) {
+  const lines = text.split('\n');
+  return (
+    <Text style={styles.blockText}>
+      {lines.map((line, lineIndex) => (
+        <Text key={lineIndex}>
+          {lineIndex > 0 ? '\n' : null}
+          {line.split(/(\*\*[^*]+\*\*)/g).map((part, partIndex) => {
+            const bold = /^\*\*([^*]+)\*\*$/.exec(part);
+            if (bold) {
+              return (
+                <Text key={partIndex} style={styles.blockBold}>
+                  {bold[1]}
+                </Text>
+              );
+            }
+            return part;
+          })}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
+function FactorAccordion({
+  factor,
   age,
-  sectionMinAge,
+  opened,
+  onToggle,
 }: {
-  topic: KnowledgeTopic;
+  factor: KnowledgeFactor;
   age: number;
-  sectionMinAge?: number;
+  opened: boolean;
+  onToggle: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const rotation = useSharedValue(0);
-  const gate = ageGate(topic, age, sectionMinAge);
+  const rotation = useSharedValue(opened ? 180 : 0);
+  const gate = ageGate(factor, age);
   const chevron = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.value}deg` }],
   }));
 
+  useEffect(() => {
+    rotation.value = withSpring(opened ? 180 : 0, spring);
+  }, [opened, rotation]);
+
   const toggle = () => {
+    void hapticLight();
     animate();
-    const next = !open;
-    setOpen(next);
-    rotation.value = withTiming(next ? 180 : 0, { duration: 180 });
+    onToggle();
   };
 
   return (
-    <View style={[styles.topic, gate.locked && styles.topicLocked]}>
-      <Pressable onPress={toggle} style={styles.topicHead}>
-        <Text style={styles.topicIcon}>{topic.icon}</Text>
-        <View style={styles.topicTitles}>
-          <Text style={styles.topicTitle}>{topic.title}</Text>
-          <View style={styles.badgeRow}>
-            {gate.priority ? (
-              <View style={styles.priorityBadge}>
-                <Text style={styles.priorityText}>Высший приоритет на данный момент</Text>
-              </View>
-            ) : null}
-            {gate.locked && gate.minAge != null ? (
-              <View style={styles.lockBadge}>
-                <Text style={styles.lockText}>{lockLabel(gate.minAge)}</Text>
-              </View>
-            ) : null}
-          </View>
+    <Animated.View
+      layout={LinearTransition.springify().stiffness(300).damping(20)}
+      style={[styles.factor, { borderColor: colors[factor.accent] + '55' }]}>
+      <PressScale haptic="none" onPress={toggle} style={styles.factorHead} accessibilityRole="button">
+        <View style={[styles.factorMark, { backgroundColor: accentGlow[factor.accent as Accent] }]}>
+          <Text style={styles.factorEmoji}>{factor.emoji}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.factorTitle}>{factor.title}</Text>
+          <Text style={styles.factorDesc}>{factor.description}</Text>
+          <AgeBadges gate={gate} tone="body" />
         </View>
         <Animated.Text style={[styles.chevron, chevron]}>⌄</Animated.Text>
-      </Pressable>
-      {open ? (
-        <Animated.View entering={FadeIn.duration(160)} style={styles.topicBody}>
-          <Text style={styles.blockKicker}>ЧТО ЭТО ДАЕТ</Text>
-          <Text style={styles.blockText}>{topic.gives}</Text>
-          <Text style={styles.blockKicker}>КАК ПРАВИЛЬНО ДЕЛАТЬ</Text>
-          <Text style={styles.blockText}>{topic.how}</Text>
-          <Text style={styles.blockKicker}>КОГДА НАЧИНАТЬ</Text>
-          <Text style={styles.blockText}>{topic.when}</Text>
+      </PressScale>
+      {opened ? (
+        <Animated.View entering={FadeIn.duration(220)} style={styles.factorBody}>
+          <AgeDisclaimer minAge={gate.minAge} tone="body" />
+          {factor.sections.map((section, index) => (
+            <View key={`${factor.id}-${index}`} style={styles.block}>
+              {section.heading ? <Text style={styles.blockKicker}>{section.heading}</Text> : null}
+              <RichText text={section.body} />
+            </View>
+          ))}
         </Animated.View>
       ) : null}
-    </View>
-  );
-}
-
-function TopicGroup({
-  label,
-  topics,
-  age,
-  sectionMinAge,
-}: {
-  label?: string;
-  topics: KnowledgeTopic[];
-  age: number;
-  sectionMinAge?: number;
-}) {
-  if (!topics.length) return null;
-  return (
-    <View style={styles.group}>
-      {label ? (
-        <Text style={[styles.groupLabel, label === 'На будущее' && styles.groupLabelFuture]}>{label}</Text>
-      ) : null}
-      {topics.map((topic) => (
-        <TopicAccordion key={topic.id} topic={topic} age={age} sectionMinAge={sectionMinAge} />
-      ))}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -118,57 +119,56 @@ export function KnowledgeBoard() {
   const age = user?.age ?? 0;
   const { isTablet } = useEngineLayout();
   const [query, setQuery] = useState('');
-  const [openFactor, setOpenFactor] = useState<string | null>(KNOWLEDGE_FACTORS[0]?.id ?? null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const q = query.trim().toLowerCase();
-  const factors = KNOWLEDGE_FACTORS.map((factor) => ({
-    ...factor,
-    topics: factor.topics.filter((topic) => {
-      if (!q) return true;
-      return [topic.title, topic.gives, topic.how, topic.when].join(' ').toLowerCase().includes(q);
-    }),
-  })).filter((factor) => factor.topics.length > 0 || !q);
+  const factors = KNOWLEDGE_FACTORS.filter((factor) => {
+    if (!q) return true;
+    const group = factor.group ? KNOWLEDGE_GROUPS[factor.group] : undefined;
+    const hay = [
+      factor.title,
+      factor.description,
+      factor.badge ?? '',
+      group?.title ?? '',
+      group?.lead ?? '',
+      ...factor.sections.map((section) => `${section.heading ?? ''} ${section.body}`),
+    ]
+      .join(' ')
+      .toLowerCase();
+    return hay.includes(q);
+  });
 
   return (
     <View>
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Найти практику, протокол, правило..."
+        placeholder="Найти кодекс, практику, протокол..."
         placeholderTextColor={colors.faint}
         style={[styles.search, isTablet && styles.searchTablet]}
       />
-      {factors.map((factor) => {
-        const opened = openFactor === factor.id;
-        const split = splitByAge(factor.topics, age, factor.minAge);
+      {factors.map((factor, index) => {
+        const prev = factors[index - 1];
+        const group = factor.group ? KNOWLEDGE_GROUPS[factor.group] : undefined;
+        const showGroup = Boolean(group && factor.group !== prev?.group);
         return (
-          <Animated.View
-            key={factor.id}
-            layout={LinearTransition.duration(180)}
-            style={[styles.factor, { borderColor: colors[factor.accent] + '55' }]}>
-            <Pressable
-              onPress={() => {
-                animate();
-                setOpenFactor(opened ? null : factor.id);
-              }}
-              style={styles.factorHead}>
-              <View style={[styles.factorMark, { backgroundColor: accentGlow[factor.accent as Accent] }]}>
-                <Text style={styles.factorEmoji}>{factor.emoji}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.factorTitle}>{factor.title}</Text>
-                <Text style={styles.factorDesc}>{factor.description}</Text>
-              </View>
-              <Text style={styles.factorChevron}>{opened ? '⌃' : '⌄'}</Text>
-            </Pressable>
-            {opened ? (
-              <View style={styles.factorBody}>
-                <TopicGroup label="Высший приоритет на данный момент" topics={split.priority} age={age} sectionMinAge={factor.minAge} />
-                <TopicGroup topics={split.current} age={age} sectionMinAge={factor.minAge} />
-                <TopicGroup label="На будущее" topics={split.future} age={age} sectionMinAge={factor.minAge} />
+          <View key={factor.id}>
+            {showGroup && group ? (
+              <View style={styles.groupHead}>
+                <Text style={styles.groupEyebrow}>{factor.group === 'warrior' ? 'ФУНДАМЕНТ' : 'ИССЛЕДОВАНИЕ'}</Text>
+                <Text style={styles.groupTitle}>
+                  {group.emoji}  {group.title}
+                </Text>
+                <Text style={styles.groupLead}>{group.lead}</Text>
               </View>
             ) : null}
-          </Animated.View>
+            <FactorAccordion
+              factor={factor}
+              age={age}
+              opened={openId === factor.id}
+              onToggle={() => setOpenId(openId === factor.id ? null : factor.id)}
+            />
+          </View>
         );
       })}
       {factors.length === 0 ? <Text style={styles.empty}>Ничего не найдено.</Text> : null}
@@ -181,24 +181,33 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: radius.md,
     color: colors.text,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 15,
+    fontSize: 17,
     marginBottom: 16,
   },
   searchTablet: { paddingVertical: 18, fontSize: 17, borderRadius: 18 },
+  groupHead: { marginTop: 8, marginBottom: 14, gap: 6 },
+  groupEyebrow: {
+    color: colors.amber,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 2.2,
+  },
+  groupTitle: { ...type.title },
+  groupLead: { ...type.footnote, lineHeight: 21, maxWidth: 720 },
   factor: {
     backgroundColor: colors.card,
     borderWidth: 1,
-    borderRadius: 22,
+    borderRadius: radius.lg,
     marginBottom: 14,
     overflow: 'hidden',
   },
   factorHead: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
     padding: 16,
   },
@@ -210,69 +219,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   factorEmoji: { fontSize: 24 },
-  factorTitle: { color: colors.text, fontSize: 17, fontWeight: '800' },
-  factorDesc: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 4 },
-  factorChevron: { color: colors.faint, fontSize: 18, fontWeight: '700', paddingLeft: 4 },
-  factorBody: { paddingHorizontal: 12, paddingBottom: 12, gap: 8 },
-  group: { gap: 8 },
-  groupLabel: {
-    color: colors.amber,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    marginTop: 4,
-    marginBottom: 2,
-    paddingHorizontal: 4,
-  },
-  groupLabelFuture: { color: colors.crimson },
-  topic: {
-    backgroundColor: colors.cardElevated,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  topicLocked: { opacity: 0.78 },
-  topicHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    minHeight: 52,
-  },
-  topicIcon: { fontSize: 18, width: 26, textAlign: 'center' },
-  topicTitles: { flex: 1, gap: 4 },
-  topicTitle: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  chevron: { color: colors.muted, fontSize: 18, fontWeight: '700' },
-  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  priorityBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.16)',
-    borderColor: colors.amber,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  priorityText: { color: colors.amber, fontSize: 10, fontWeight: '800' },
-  lockBadge: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderColor: colors.crimson,
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  lockText: { color: colors.crimson, fontSize: 10, fontWeight: '800' },
-  topicBody: { paddingHorizontal: 14, paddingBottom: 14, gap: 6 },
+  factorTitle: { ...type.headline },
+  factorDesc: { ...type.footnote, marginTop: 4 },
+  chevron: { color: colors.faint, fontSize: 18, fontWeight: '700', paddingLeft: 4, marginTop: 2 },
+  factorBody: { paddingHorizontal: 16, paddingBottom: 16, gap: 12 },
+  block: { gap: 6 },
   blockKicker: {
     color: colors.text,
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '800',
-    letterSpacing: 0.8,
-    marginTop: 8,
+    lineHeight: 18,
   },
-  blockText: { color: colors.muted, fontSize: 14, lineHeight: 21 },
+  blockText: { color: colors.muted, fontSize: 14, lineHeight: 22 },
+  blockBold: { color: colors.text, fontWeight: '800' },
   empty: { color: colors.muted, textAlign: 'center', marginTop: 24 },
 });

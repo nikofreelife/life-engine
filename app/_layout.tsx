@@ -1,7 +1,9 @@
+import 'react-native-gesture-handler';
 import { DarkTheme, ThemeProvider, Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, type ReactNode } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { AuthProvider, useAuth } from '@/src/auth';
@@ -50,25 +52,27 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <AuthProvider>
-      <EngineProvider>
-        <ThemeProvider value={EngineTheme}>
-          <StatusBar style="light" />
-          <AuthGate>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.bg },
-                animation: 'fade',
-              }}>
-              <Stack.Screen name="auth" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
-              <Stack.Screen name="secret" options={{ animation: 'fade', gestureEnabled: false }} />
-            </Stack>
-          </AuthGate>
-        </ThemeProvider>
-      </EngineProvider>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
+      <AuthProvider>
+        <EngineProvider>
+          <ThemeProvider value={EngineTheme}>
+            <StatusBar style="light" />
+            <AuthGate>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: colors.bg },
+                  animation: 'fade',
+                }}>
+                <Stack.Screen name="auth" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="profile" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="secret" options={{ animation: 'fade', gestureEnabled: false }} />
+              </Stack>
+            </AuthGate>
+          </ThemeProvider>
+        </EngineProvider>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
