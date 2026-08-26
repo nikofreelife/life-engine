@@ -3,6 +3,8 @@ name: Build Sideload IPA
 on:
   push:
     branches: [main, master]
+    paths-ignore:
+      - ".github/workflows/build-apk.yml"
   workflow_dispatch:
 
 permissions:

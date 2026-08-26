@@ -13,6 +13,8 @@ web-build/
 build/
 scripts/verify/
 *.ipa
+*.apk
+*.aab
 
 # Native
 .kotlin/

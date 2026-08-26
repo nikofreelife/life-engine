@@ -1,0 +1,119 @@
+name: Build Sideload APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - ".github/workflows/build-apk.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      JAVA_TOOL_OPTIONS: -Xmx4096m
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Generate icons
+        run: node scripts/make-icons.mjs
+
+      - name: Expo prebuild Android
+        env:
+          CI: 1
+          EXPO_NO_GIT_STATUS: 1
+        run: npx expo prebuild --platform android --non-interactive
+
+      - name: Point Gradle at the SDK
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_HOME:-}"
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
+          chmod +x android/gradlew
+
+      - name: Sideload-sign release with debug keystore
+        run: |
+          set -euo pipefail
+          FILE="android/app/build.gradle"
+          test -f "$FILE"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/build.gradle")
+          text = path.read_text(encoding="utf-8")
+          if "signingConfig signingConfigs.debug" in text:
+              print("release already uses debug signing")
+          else:
+              needle = "        release {"
+              insert = "        release {\n            signingConfig signingConfigs.debug"
+              if needle not in text:
+                  raise SystemExit("could not find release buildType in android/app/build.gradle")
+              text = text.replace(needle, insert, 1)
+              path.write_text(text, encoding="utf-8")
+              print("injected debug signing into release")
+          PY
+
+      - name: Assemble release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Package APK
+        run: |
+          set -euo pipefail
+          APK="$(find android/app/build/outputs/apk -name 'app-release.apk' | head -n 1)"
+          if [ -z "$APK" ]; then
+            APK="$(find android/app/build/outputs/apk -name '*.apk' ! -name '*unsigned*' | head -n 1)"
+          fi
+          echo "Found apk: $APK"
+          test -f "$APK"
+          cp "$APK" LifeEngine.apk
+          ls -lh LifeEngine.apk
+          BYTES="$(stat -c%s LifeEngine.apk)"
+          echo "APK bytes: $BYTES"
+          if [ "$BYTES" -lt 8000000 ]; then
+            echo "APK is too small to be a real device binary ($BYTES bytes)" >&2
+            exit 1
+          fi
+          file LifeEngine.apk
+          $ANDROID_HOME/build-tools/*/apksigner verify --print-certs LifeEngine.apk || true
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LifeEngine-apk
+          path: LifeEngine.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.7-apk
+          name: Life Engine v1.0.7 APK
+          body: |
+            Sideload Android APK (debug-signed release) for direct install.
+            Package: com.lifeengine.app · versionCode 7
+            Enable Unknown sources, then open LifeEngine.apk.
+          files: LifeEngine.apk
+          fail_on_unmatched_files: true
