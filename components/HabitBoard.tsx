@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
+import { EmojiPicker } from './EmojiPicker';
+import { NativeSheet } from './NativeSheet';
 import { PressScale } from './PressScale';
+import { isEmoji } from '../src/data/emoji';
 import { monthMatrix, streakFor, todayKey } from '../src/lib';
 import { useEngineLayout } from '../src/layout';
 import { useEngine } from '../src/store';
@@ -10,8 +13,6 @@ import { colors } from '../src/theme';
 import type { Habit, HabitSlot } from '../src/types';
 
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-
-const HABIT_EMOJIS = ['✨', '💧', '📖', '🏃', '❄️', '🧘', '🥗', '😴', '🧠', '🔥', '✍️', '☀️', '💪'];
 
 const SLOTS: { id: HabitSlot; label: string }[] = [
   { id: 'morning', label: 'Утро' },
@@ -25,6 +26,7 @@ export function HabitBoard() {
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState('✨');
   const [slot, setSlot] = useState<HabitSlot>('morning');
+  const [picker, setPicker] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const year = new Date().getFullYear();
   const month = new Date().getMonth();
@@ -39,7 +41,7 @@ export function HabitBoard() {
   const submit = () => {
     const clean = name.trim();
     if (!clean) return;
-    addHabit(clean, { emoji, slot });
+    addHabit(clean, { emoji: isEmoji(emoji) ? emoji : '✨', slot });
     setName('');
     setEmoji('✨');
     setSlot('morning');
@@ -58,20 +60,24 @@ export function HabitBoard() {
           style={styles.input}
           onSubmitEditing={submit}
         />
-        <Text style={styles.fieldLabel}>Аватарка</Text>
-        <View style={styles.chipRow}>
-          {HABIT_EMOJIS.map((item) => {
-            const on = emoji === item;
-            return (
-              <Pressable
-                key={item}
-                onPress={() => setEmoji(item)}
-                style={[styles.emojiChip, on && styles.emojiChipOn]}>
-                <Text style={styles.emojiChipText}>{item}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <PressScale haptic="light" onPress={() => setPicker(true)} style={styles.iconPick}>
+          <View style={styles.iconMark}>
+            <Text style={styles.iconGlyph}>{emoji}</Text>
+          </View>
+          <Text style={styles.iconLabel}>Иконка</Text>
+        </PressScale>
+        <NativeSheet visible={picker} onClose={() => setPicker(false)} height="full">
+          <View style={{ flex: 1 }}>
+            <EmojiPicker
+              value={emoji}
+              onSelect={(next) => {
+                if (!isEmoji(next)) return;
+                setEmoji(next);
+                setPicker(false);
+              }}
+            />
+          </View>
+        </NativeSheet>
         <Text style={styles.fieldLabel}>Время суток</Text>
         <View style={styles.chipRow}>
           {SLOTS.map((item) => {
@@ -109,7 +115,7 @@ export function HabitBoard() {
               />
             ))
           ) : (
-            <Text style={styles.empty}>Пока пусто</Text>
+            <Text style={styles.empty}>Пока пусто — создай привычку выше (название, emoji, утро/день/вечер).</Text>
           )}
         </View>
       ))}
@@ -140,7 +146,7 @@ function HabitStrip({
   const doneToday = Boolean(habit.completions[today]);
 
   return (
-    <Animated.View layout={LinearTransition.springify()} entering={FadeIn} style={styles.strip}>
+    <View style={styles.strip}>
       <View style={styles.stripRow}>
         <Pressable onPress={onOpen} style={styles.stripMain}>
           <View style={styles.avatar}>
@@ -167,7 +173,7 @@ function HabitStrip({
         </PressScale>
       </View>
       {open ? (
-        <View style={styles.cal}>
+        <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)} style={styles.cal}>
           <Pressable onPress={onRemove} hitSlop={8} style={styles.deleteHit}>
             <Text style={styles.delete}>удалить привычку</Text>
           </Pressable>
@@ -195,9 +201,9 @@ function HabitStrip({
               })}
             </View>
           ))}
-        </View>
+        </Animated.View>
       ) : null}
-    </Animated.View>
+    </View>
   );
 }
 
@@ -223,19 +229,25 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   fieldLabel: { color: colors.muted, fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  emojiChip: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
+  iconPick: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 10,
+  },
+  iconMark: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: '#0F141F',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emojiChipOn: { borderColor: colors.emerald, backgroundColor: 'rgba(16,185,129,0.16)' },
-  emojiChipText: { fontSize: 20 },
+  iconGlyph: { fontSize: 22, textAlign: 'center' },
+  iconLabel: { color: colors.text, fontWeight: '800', fontSize: 14 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   slotChip: {
     borderRadius: 999,
     borderWidth: 1,

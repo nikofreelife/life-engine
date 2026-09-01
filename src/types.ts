@@ -98,9 +98,11 @@ export type SecretState = {
 export type UserAccount = {
   id: string;
   email: string;
+  name: string;
   age: number;
   createdAt: string;
   local?: boolean;
+  passHash?: string;
 };
 
 export type Ageable = {
@@ -161,6 +163,46 @@ export type CoachMessage = {
   atISO: string;
 };
 
+export type CoachChatThread = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: CoachMessage[];
+};
+
+export type ScreenTimeSelection = {
+  selectionData: string;
+  applicationCount: number;
+  categoryCount: number;
+  webCount: number;
+};
+
+export type ScreenTimeUnlock = {
+  completed: number;
+  startedAt: string;
+};
+
+export type ScreenTimeBypass = {
+  id: string;
+  atISO: string;
+  repeats: number;
+};
+
+export type ScreenTimeState = {
+  phrase: string;
+  repeats: number;
+  selection: ScreenTimeSelection | null;
+  weeklyLimitMin: number;
+  dailyCapMin: number;
+  useDayGrid: boolean;
+  dayLimitsMin: number[];
+  bypassUntil: string | null;
+  bypassLog: ScreenTimeBypass[];
+  unlock: ScreenTimeUnlock | null;
+  nativeLocked: boolean;
+};
+
 export type EngineState = {
   items: Record<string, ItemState>;
   habits: Habit[];
@@ -168,7 +210,16 @@ export type EngineState = {
   customSections: CatalogSection[];
   extraItems: Record<string, CatalogItem[]>;
   coachMessages: CoachMessage[];
+  coachChats: CoachChatThread[];
+  activeCoachChatId: string;
+  coachPromptRev: number;
   videoInsights: Record<string, VideoInsight>;
   videoWatch: Record<string, VideoWatchStatus>;
   breathLogs: BreathLog[];
+  visitStreak: number;
+  lastLoginDate: string;
+  lastLoginAt: string;
+  streakWarning: boolean;
+  streakCelebrate: boolean;
+  screenTime: ScreenTimeState;
 };

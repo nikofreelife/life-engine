@@ -16,7 +16,7 @@ export const colors = {
   crimson: '#EF4444',
   cyan: '#22D3EE',
   white: '#FFFFFF',
-  glass: 'rgba(14, 17, 24, 0.62)',
+  glass: '#141721',
   backdrop: 'rgba(0, 0, 0, 0.55)',
 } as const;
 
@@ -42,9 +42,25 @@ export const radius = {
 };
 
 export const spring = {
-  stiffness: 300,
-  damping: 20,
-  mass: 0.7,
+  stiffness: 420,
+  damping: 18,
+  mass: 0.45,
+};
+
+export const pressScale = 0.96;
+
+export const calendarTone = {
+  clean: '#22C55E',
+  craving: '#EAB308',
+  slip: '#EF4444',
+} as const;
+
+export const moodTone: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: '#991B1B',
+  2: '#F97316',
+  3: '#EAB308',
+  4: '#84CC16',
+  5: '#10B981',
 };
 
 export const fonts = Platform.select({
@@ -93,13 +109,7 @@ export const type = {
   } satisfies TextStyle,
 };
 
-export const cardShadow: ViewStyle = {
-  shadowColor: '#000',
-  shadowOpacity: 0.5,
-  shadowRadius: 12,
-  shadowOffset: { width: 0, height: 8 },
-  elevation: 10,
-};
+export const cardShadow: ViewStyle = {};
 
 export const cardSurface: ViewStyle = {
   backgroundColor: colors.card,

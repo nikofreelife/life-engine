@@ -11,7 +11,11 @@
       "supportsTablet": true,
       "requireFullScreen": false,
       "bundleIdentifier": "com.lifeengine.app",
-      "buildNumber": "7",
+      "buildNumber": "8",
+      "entitlements": {
+        "com.apple.developer.family-controls": true,
+        "com.apple.security.application-groups": ["group.com.lifeengine.app"]
+      },
       "icon": {
         "light": "./assets/images/icon.png",
         "dark": "./assets/images/icon.png",
@@ -21,6 +25,7 @@
         "CFBundleDisplayName": "Life Engine",
         "CFBundleIconName": "AppIcon",
         "ITSAppUsesNonExemptEncryption": false,
+        "NSFamilyControlsUsageDescription": "Life Engine использует Экранное время Apple, чтобы ты выбирал установленные приложения и блокировал их на уровне системы, когда лимит исчерпан.",
         "UIDeviceFamily": [1, 2],
         "UIRequiresFullScreen": false,
         "UISupportedInterfaceOrientations": [
@@ -55,6 +60,8 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "@bacons/apple-targets",
+      "./modules/life-engine-screentime/app.plugin.js",
       [
         "expo-splash-screen",
         {

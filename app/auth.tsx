@@ -20,6 +20,7 @@ export default function AuthScreen() {
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [local, setLocal] = useState(false);
   const [email, setEmail] = useState('');
+  const [display, setDisplay] = useState('');
   const [password, setPassword] = useState('');
   const [age, setAge] = useState('');
   const [error, setError] = useState('');
@@ -34,6 +35,7 @@ export default function AuthScreen() {
       } else {
         await signUp({
           email,
+          name: display,
           password: local ? undefined : password,
           age: Number(age),
           local,
@@ -46,7 +48,7 @@ export default function AuthScreen() {
     }
   };
 
-  const localAccounts = accounts.filter((account) => account.local);
+  const deviceAccounts = accounts;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -78,6 +80,17 @@ export default function AuthScreen() {
             placeholderTextColor={colors.faint}
             style={styles.input}
           />
+          {mode === 'up' ? (
+            <TextInput
+              value={display}
+              onChangeText={setDisplay}
+              autoCapitalize="words"
+              autoCorrect={false}
+              placeholder="Твое Имя *"
+              placeholderTextColor={colors.faint}
+              style={styles.input}
+            />
+          ) : null}
           {local && mode === 'up' ? null : (
             <TextInput
               value={password}
@@ -111,13 +124,13 @@ export default function AuthScreen() {
             <Text style={styles.submitText}>{busy ? '…' : mode === 'in' ? 'Войти' : 'Создать аккаунт'}</Text>
           </PressScale>
 
-          {localAccounts.length ? (
+          {deviceAccounts.length ? (
             <View style={styles.locals}>
-              <Text style={styles.localsKicker}>Локальные аккаунты на устройстве</Text>
-              {localAccounts.map((account) => (
+              <Text style={styles.localsKicker}>Аккаунты на этом устройстве</Text>
+              {deviceAccounts.map((account) => (
                 <Pressable key={account.id} onPress={() => signInAccount(account.id)} style={styles.localCard}>
-                  <Text style={styles.localName}>{account.email}</Text>
-                  <Text style={styles.localMeta}>{account.age} лет</Text>
+                  <Text style={styles.localName}>{account.name || account.email}</Text>
+                  <Text style={styles.localMeta}>{account.email} · {account.age} лет{account.local ? ' · локальный' : ''}</Text>
                 </Pressable>
               ))}
             </View>

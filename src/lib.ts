@@ -1,4 +1,4 @@
-import type { EngineState, Habit, HabitSlot, ItemState, Status } from './types';
+import type { CoachChatThread, EngineState, Habit, HabitSlot, ItemState, Status } from './types';
 
 export const STORAGE_KEY = 'life-engine-v1';
 export const ACCOUNTS_KEY = 'life-engine-accounts';
@@ -51,6 +51,30 @@ export function uid(prefix = 'id'): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+export const COACH_PROMPT_REV = 2;
+
+export function blankCoachChat(): CoachChatThread {
+  const now = new Date().toISOString();
+  return {
+    id: uid('chat'),
+    title: 'Новый чат',
+    createdAt: now,
+    updatedAt: now,
+    messages: [],
+  };
+}
+
+export function titleFromPrompt(text: string) {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (!clean) return 'Новый чат';
+  return clean.length > 42 ? `${clean.slice(0, 42).trim()}…` : clean;
+}
+
+export function activeCoachChat(state: EngineState): CoachChatThread {
+  const chats = state.coachChats ?? [];
+  return chats.find((chat) => chat.id === state.activeCoachChatId) ?? chats[0] ?? blankCoachChat();
+}
+
 export function hashPin(pin: string): string {
   let h = 2166136261;
   const input = `life-engine-v1::${pin}`;
@@ -66,13 +90,10 @@ export function defaultItem(): ItemState {
 }
 
 export function emptyState(): EngineState {
+  const chat = blankCoachChat();
   return {
     items: {},
-    habits: [
-      seedHabit('Холодный душ', '🚿', 'morning'),
-      seedHabit('Чтение 20 минут', '📖', 'evening'),
-      seedHabit('Движение / тренировка', '🏃', 'day'),
-    ],
+    habits: [],
     secret: {
       pinHash: null,
       thcStartISO: null,
@@ -88,20 +109,79 @@ export function emptyState(): EngineState {
     customSections: [],
     extraItems: {},
     coachMessages: [],
+    coachChats: [chat],
+    activeCoachChatId: chat.id,
+    coachPromptRev: COACH_PROMPT_REV,
     videoInsights: {},
     videoWatch: {},
     breathLogs: [],
+    visitStreak: 0,
+    lastLoginDate: '',
+    lastLoginAt: '',
+    streakWarning: false,
+    streakCelebrate: false,
+    screenTime: {
+      phrase: 'Я осознанно управляю своим временем и держу фокус на главных целях',
+      repeats: 48,
+      selection: null,
+      weeklyLimitMin: 120,
+      dailyCapMin: 30,
+      useDayGrid: false,
+      dayLimitsMin: [15, 15, 15, 15, 40, 40, 40],
+      bypassUntil: null,
+      bypassLog: [],
+      unlock: null,
+      nativeLocked: false,
+    },
   };
 }
 
-function seedHabit(name: string, emoji: string, slot: HabitSlot): Habit {
+const SEED_HABIT_NAMES = new Set(['Холодный душ', 'Чтение 20 минут', 'Движение / тренировка']);
+
+export function stripUnusedSeedHabits(habits: Habit[]): Habit[] {
+  if (!habits.length) return [];
+  const onlySeeds = habits.every((habit) => SEED_HABIT_NAMES.has(habit.name));
+  const unused = habits.every((habit) => !Object.keys(habit.completions ?? {}).length);
+  if (onlySeeds && unused) return [];
+  return habits;
+}
+
+export function applyVisitStreak(state: EngineState, now = new Date()): EngineState {
+  const today = todayKey(now);
+  const lastDate = state.lastLoginDate || '';
+  const lastAt = state.lastLoginAt ? new Date(state.lastLoginAt).getTime() : 0;
+  const hoursGap = lastAt ? (now.getTime() - lastAt) / 3600000 : Number.POSITIVE_INFINITY;
+  const yesterday = todayKey(shiftDays(-1, now));
+
+  if (lastDate === today) {
+    return {
+      ...state,
+      visitStreak: Math.max(1, state.visitStreak || 1),
+      lastLoginAt: state.lastLoginAt || now.toISOString(),
+      streakCelebrate: false,
+    };
+  }
+
+  const consecutive = lastDate === yesterday && hoursGap <= 48;
+  if (consecutive) {
+    return {
+      ...state,
+      visitStreak: (state.visitStreak || 0) + 1,
+      lastLoginDate: today,
+      lastLoginAt: now.toISOString(),
+      streakWarning: false,
+      streakCelebrate: true,
+    };
+  }
+
+  const firstVisit = !lastDate;
   return {
-    id: uid('habit'),
-    name,
-    emoji,
-    slot,
-    createdAt: new Date().toISOString(),
-    completions: {},
+    ...state,
+    visitStreak: 1,
+    lastLoginDate: today,
+    lastLoginAt: now.toISOString(),
+    streakWarning: !firstVisit,
+    streakCelebrate: true,
   };
 }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeInUp, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 
 import { NoteEditor } from './NoteEditor';
 import { AgeBadges, AgeDisclaimer } from './AgeRecommend';
@@ -15,7 +15,7 @@ const STATUSES: Status[] = ['planned', 'progress', 'done'];
 
 export function ItemCard({
   item,
-  index,
+  index: _index,
   guide,
   sectionMinAge,
   onRemove,
@@ -39,10 +39,9 @@ export function ItemCard({
   return (
     <>
       <Animated.View
-        entering={FadeInUp.delay(Math.min(index, 8) * 40).duration(380)}
-        layout={LinearTransition.springify()}
-        style={[styles.card, { borderColor: colors.border, shadowColor: accent }, done && !guide ? styles.cardDone : null]}>
-        <View style={[styles.rail, { backgroundColor: accent, shadowColor: accent }]} />
+        entering={FadeInUp.duration(200).delay(Math.min(_index * 36, 180))}
+        style={[styles.card, { borderColor: colors.border }, done && !guide ? styles.cardDone : null]}>
+        <View style={[styles.rail, { backgroundColor: accent }]} />
         <View style={styles.body}>
           <View style={styles.row}>
             {guide ? (
@@ -191,7 +190,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   cardDone: { opacity: 0.82 },
-  rail: { width: 3, shadowOpacity: 0.8, shadowRadius: 8 },
+  rail: { width: 3 },
   body: { flex: 1, padding: 20, gap: 14 },
   row: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
   check: {

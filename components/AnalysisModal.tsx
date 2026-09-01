@@ -11,7 +11,7 @@ import {
 import { NativeSheet } from './NativeSheet';
 
 import { ANALYSIS_SYSTEM, analysisPrompt, type FreemanEpisode } from '../src/data/freeman';
-import { llmComplete, readLlmKey } from '../src/llm';
+import { llmComplete } from '../src/llm';
 import { useEngine } from '../src/store';
 import { colors } from '../src/theme';
 
@@ -42,17 +42,11 @@ export function AnalysisModal({ episode, onClose }: Props) {
     }
     setBusy(true);
     try {
-      const key = await readLlmKey();
-      if (!key) {
-        setVideoInsight(episode.id, { text: episode.local, source: 'local', atISO: new Date().toISOString() });
-        setError('Ключа нет — показан базовый разбор. Добавь API key в профиле.');
-        return;
-      }
       const text = await llmComplete(ANALYSIS_SYSTEM, analysisPrompt(episode));
       setVideoInsight(episode.id, { text, source: 'ai', atISO: new Date().toISOString() });
-    } catch (err) {
+    } catch {
       setVideoInsight(episode.id, { text: episode.local, source: 'local', atISO: new Date().toISOString() });
-      setError(err instanceof Error ? err.message : 'Сеть или ключ не приняли запрос. Ниже — базовый разбор.');
+      setError('Сеть моргнула — показан базовый разбор.');
     } finally {
       setBusy(false);
     }
@@ -93,7 +87,7 @@ export function AnalysisModal({ episode, onClose }: Props) {
               </View>
             ) : (
               <View style={styles.card}>
-                <Text style={styles.source}>Базовый разбор · без ключа или до запроса</Text>
+                <Text style={styles.source}>Базовый разбор · до ответа сети</Text>
                 <Text style={styles.text}>{episode.local}</Text>
               </View>
             )}

@@ -1,18 +1,33 @@
-import { llmComplete, readLlmKey } from './llm';
+import { llmComplete } from './llm';
 
-const SYSTEM = `Ты — AI Discipline Coach в приложении Life Engine. Говоришь по-русски. Прямой, честный, без поддакивания и без токсичного унижения. Аргументируешь логикой и фактами. Темы: дисциплина, мотивация как побочный продукт действия, стратегия дня, твёрдость характера, тяга, срыв, стоицизм. Не продаёшь «позитив». Если пользователь ищет оправдание — режь его. Если держит удар — усиливай точность, не хвали за воздух. Короткие абзацы.`;
+export function coachSystem(name: string) {
+  const who = name.trim() || 'друг';
+  return `Ты — близкий друг, старший брат и опытный наставник по дисциплине и спорту. Пользователя зовут ${who}.
+
+ТВОИ ЖЕЛЕЗНЫЕ ПРАВИЛА ОБЩЕНИЯ:
+1. НИКАКОЙ ДУШНОТЫ И МОРАЛИЗАТОРСТВА: Запрещено читать нотации, учить этикету, обижаться или требовать вежливых приветствий типа "Здравствуй, тренер". Разговаривай как ровный бро на равных.
+2. РАЗГОВОР НА РАВНЫХ: Используй живой, уверенный, дружеский сленг. Общайся коротко, емко и по существу.
+3. ЗАПРЕТ НА ЗАЦИКЛИВАНИЕ: Никогда не повторяй одну и ту же фразу или предложение больше одного раза в ответе!
+4. ФАКТЫ И ЛОГИКА: Отвечай строго по теме вопроса (спорт, биомеханика, дисциплина, режим, уличный бой, привычки). Поддерживай фактами и практической логикой, без фальшивой вежливости.
+5. ДЛИНА ОТВЕТА: Отвечай кратко — от 2 до 5 четких, структурированных предложений, без гигантских водянистых абзацев.
+
+Отвечай по-русски. Обращайся к ${who} по имени, но не в каждом предложении.`;
+}
 
 export { readLlmKey as readCoachKey, writeLlmKey as writeCoachKey } from './llm';
 
-export async function coachReply(input: string, history: { role: 'user' | 'coach'; text: string }[]) {
-  const key = await readLlmKey();
-  if (!key) throw new Error('NO_KEY');
-
+export async function coachReply(
+  name: string,
+  input: string,
+  history: { role: 'user' | 'coach'; text: string }[],
+) {
+  const who = name.trim() || 'друг';
   const transcript = history
-    .slice(-8)
-    .map((m) => `${m.role === 'coach' ? 'Тренер' : 'Человек'}: ${m.text}`)
+    .slice(-6)
+    .map((m) => `${m.role === 'coach' ? 'Коуч' : who}: ${m.text}`)
     .join('\n');
-  return llmComplete(SYSTEM, `${transcript ? `${transcript}\n\n` : ''}Человек: ${input}`);
+  const prompt = `${transcript ? `${transcript}\n\n` : ''}${who}: ${input}\n\nКоуч: (коротко, без повторов прошлых фраз)`;
+  return llmComplete(coachSystem(who), prompt);
 }
 
 export const COACH_PRESETS = [

@@ -1,10 +1,11 @@
-import { BlurView } from 'expo-blur';
+import { useEffect } from 'react';
 import { SymbolView } from 'expo-symbols';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PressScale } from './PressScale';
-import { colors, fonts } from '../src/theme';
+import { colors, fonts, spring } from '../src/theme';
 
 type TabBarProps = {
   state: {
@@ -27,6 +28,7 @@ const TABS: Record<
   index: { ios: 'book.fill', android: 'menu_book', web: 'menu_book', label: 'Книги' },
   learn: { ios: 'target', android: 'track_changes', web: 'track_changes', label: 'Учёба' },
   health: { ios: 'bolt.fill', android: 'bolt', web: 'bolt', label: 'Тело' },
+  screentime: { ios: 'hourglass', android: 'hourglass_empty', web: 'hourglass_empty', label: 'Экран' },
   knowledge: { ios: 'text.book.closed.fill', android: 'auto_stories', web: 'auto_stories', label: 'Знания' },
   video: { ios: 'play.rectangle.fill', android: 'smart_display', web: 'smart_display', label: 'Видео' },
   coach: { ios: 'brain.head.profile', android: 'psychology', web: 'psychology', label: 'AI' },
@@ -34,12 +36,29 @@ const TABS: Record<
 
 export function NativeTabBar({ state, navigation, descriptors }: TabBarProps) {
   const insets = useSafeAreaInsets();
+  const width = useSharedValue(0);
+  const x = useSharedValue(0);
+  const n = Math.max(state.routes.length, 1);
+
+  useEffect(() => {
+    x.value = withSpring(state.index * (width.value / n), spring);
+  }, [n, state.index, width, x]);
+
+  const pill = useAnimatedStyle(() => ({
+    width: Math.max(0, width.value / n - 6),
+    transform: [{ translateX: x.value + 3 }],
+  }));
 
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { bottom: Math.max(insets.bottom, 8) }]}>
       <View style={styles.shell}>
-        <BlurView intensity={64} tint="systemUltraThinMaterialDark" style={StyleSheet.absoluteFill} />
-        <View style={styles.row}>
+        <View
+          style={styles.row}
+          onLayout={(event) => {
+            width.value = event.nativeEvent.layout.width;
+            x.value = state.index * (event.nativeEvent.layout.width / n);
+          }}>
+          <Animated.View pointerEvents="none" style={[styles.pill, pill]} />
           {state.routes.map((route, index) => {
             const focused = state.index === index;
             const meta = TABS[route.name] ?? {
@@ -71,7 +90,6 @@ export function NativeTabBar({ state, navigation, descriptors }: TabBarProps) {
                   }
                 />
                 <Text style={[styles.label, focused && styles.labelOn]}>{meta.label}</Text>
-                <View style={[styles.dot, focused && styles.dotOn]} />
               </PressScale>
             );
           })}
@@ -94,7 +112,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.glass,
+    backgroundColor: colors.card,
   },
   row: {
     flexDirection: 'row',
@@ -103,33 +121,27 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 6,
   },
+  pill: {
+    position: 'absolute',
+    top: 6,
+    bottom: 6,
+    borderRadius: 22,
+    backgroundColor: 'rgba(16,185,129,0.16)',
+  },
   item: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
+    zIndex: 1,
   },
   label: {
     color: colors.faint,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '600',
     fontFamily: fonts,
     letterSpacing: 0.2,
   },
   labelOn: { color: colors.emerald },
   fallback: { fontSize: 16, fontWeight: '700' },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'transparent',
-    marginTop: 1,
-  },
-  dotOn: {
-    backgroundColor: colors.emerald,
-    shadowColor: colors.emerald,
-    shadowOpacity: 0.95,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 0 },
-  },
 });

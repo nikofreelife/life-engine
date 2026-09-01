@@ -3,67 +3,61 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAuth } from '@/src/auth';
-import {
-  readLlmKey,
-  readLlmProvider,
-  writeLlmKey,
-  writeLlmProvider,
-  type LlmProviderChoice,
-} from '@/src/llm';
+import { useAuth, displayName } from '@/src/auth';
 import { useEngine } from '@/src/store';
 import { colors } from '@/src/theme';
 
-const PROVIDERS: Array<{ id: LlmProviderChoice; label: string }> = [
-  { id: 'auto', label: 'Авто' },
-  { id: 'openai', label: 'OpenAI' },
-  { id: 'openrouter', label: 'OpenRouter' },
-  { id: 'anthropic', label: 'Anthropic' },
-  { id: 'groq', label: 'Groq' },
-];
-
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, updateAge, signOut } = useAuth();
+  const { user, updateProfile, signOut } = useAuth();
   const { state } = useEngine();
+  const [name, setName] = useState(user?.name ?? '');
   const [age, setAge] = useState(String(user?.age ?? ''));
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [provider, setProvider] = useState<LlmProviderChoice>('auto');
-  const [keySaved, setKeySaved] = useState(false);
 
   useEffect(() => {
-    readLlmKey().then(setApiKey);
-    readLlmProvider().then(setProvider);
-  }, []);
+    setName(user?.name ?? '');
+    setAge(String(user?.age ?? ''));
+  }, [user?.name, user?.age]);
 
   const save = async () => {
     setError('');
     setSaved(false);
     try {
-      await updateAge(Number(age));
+      await updateProfile({ name, age: Number(age) });
       setSaved(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не сохранилось');
     }
   };
 
-  const saveKey = async () => {
-    await writeLlmKey(apiKey);
-    await writeLlmProvider(provider);
-    setKeySaved(true);
-  };
-
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.kicker}>ПРОФИЛЬ</Text>
-        <Text style={styles.title}>Возраст, аккаунт, ИИ</Text>
-        <Text style={styles.email}>{user?.email}</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardHello}>Привет, {displayName(user)} 👋</Text>
+          <Text style={styles.title}>{displayName(user)}</Text>
+          <Text style={styles.email}>{user?.email}</Text>
+          <Text style={styles.streakLine}>🔥 Стрик: {state.visitStreak || 0} дн.</Text>
+        </View>
+        {state.streakWarning ? (
+          <Text style={styles.warn}>Пропущен день — стрик обнулён. Сегодня снова день 1.</Text>
+        ) : null}
         <Text style={styles.hint}>
-          Карточки подстраиваются под возраст. API-ключ обязателен для живого коуча и разбора серий Mr. Freeman.
+          Карточки подстраиваются под возраст. ИИ-коуч зовёт тебя по имени и работает сразу — ничего вставлять не нужно.
         </Text>
+        <Text style={styles.label}>Твое Имя</Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          autoCapitalize="words"
+          autoCorrect={false}
+          placeholder="Как к тебе обращаться"
+          placeholderTextColor={colors.faint}
+          style={styles.input}
+        />
         <Text style={styles.label}>Укажи свой возраст</Text>
         <TextInput
           value={age}
@@ -76,43 +70,7 @@ export default function ProfileScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {saved ? <Text style={styles.ok}>Сохранено. Интерфейс пересчитает приоритеты.</Text> : null}
         <Pressable onPress={save} style={styles.save}>
-          <Text style={styles.saveText}>Сохранить возраст</Text>
-        </Pressable>
-
-        <Text style={[styles.label, { marginTop: 28 }]}>API Key (OpenAI / OpenRouter) — обязательно</Text>
-        <Text style={styles.hint}>
-          Без ключа ИИ-коуч заблокирован. Ключ хранится только на этом устройстве. Авто определяет провайдера по
-          префиксу (sk-or-, sk-ant-, gsk_, sk-).
-        </Text>
-        <TextInput
-          value={apiKey}
-          onChangeText={(v) => {
-            setApiKey(v);
-            setKeySaved(false);
-          }}
-          placeholder="sk-... / sk-or-... / sk-ant-... / gsk_..."
-          placeholderTextColor={colors.faint}
-          style={styles.input}
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-        />
-        <View style={styles.providers}>
-          {PROVIDERS.map((item) => (
-            <Pressable
-              key={item.id}
-              onPress={() => {
-                setProvider(item.id);
-                setKeySaved(false);
-              }}
-              style={[styles.prov, provider === item.id && styles.provOn]}>
-              <Text style={[styles.provText, provider === item.id && styles.provTextOn]}>{item.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-        {keySaved ? <Text style={styles.ok}>Ключ сохранён.</Text> : null}
-        <Pressable onPress={saveKey} style={styles.save}>
-          <Text style={styles.saveText}>Сохранить API-ключ</Text>
+          <Text style={styles.saveText}>Сохранить профиль</Text>
         </Pressable>
 
         <Text style={[styles.label, { marginTop: 28 }]}>Дыхание Вима Хофа</Text>
@@ -154,8 +112,20 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 24, maxWidth: 520, width: '100%', alignSelf: 'center', paddingBottom: 48 },
   kicker: { color: colors.blue, letterSpacing: 2.4, fontWeight: '800', fontSize: 11 },
-  title: { color: colors.text, fontSize: 28, fontWeight: '800', marginTop: 6 },
+  card: {
+    marginTop: 10,
+    marginBottom: 8,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 18,
+    padding: 16,
+  },
+  cardHello: { color: colors.muted, fontWeight: '700', fontSize: 13 },
+  title: { color: colors.text, fontSize: 28, fontWeight: '800', marginTop: 4 },
   email: { color: colors.emerald, marginTop: 8, fontWeight: '700' },
+  streakLine: { color: '#F97316', marginTop: 8, fontWeight: '800' },
+  warn: { color: colors.amber, marginTop: 6, fontWeight: '700' },
   hint: { color: colors.muted, marginTop: 10, lineHeight: 20, marginBottom: 16 },
   label: { color: colors.text, fontWeight: '700', marginBottom: 8 },
   input: {
@@ -169,18 +139,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 12,
   },
-  providers: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  prov: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.card,
-  },
-  provOn: { borderColor: colors.violet, backgroundColor: colors.cardElevated },
-  provText: { color: colors.muted, fontWeight: '700', fontSize: 12 },
-  provTextOn: { color: colors.text },
   error: { color: colors.crimson, marginBottom: 8, fontWeight: '700' },
   ok: { color: colors.emerald, marginBottom: 8, fontWeight: '700' },
   save: {

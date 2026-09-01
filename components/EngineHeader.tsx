@@ -1,12 +1,11 @@
-import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { PressScale } from './PressScale';
-import { useAuth } from '../src/auth';
+import { StreakChip } from './StreakBadge';
+import { displayName, useAuth } from '../src/auth';
 import { hapticSuccess } from '../src/haptics';
 import { useEngineLayout } from '../src/layout';
 import { useEngine } from '../src/store';
@@ -18,7 +17,7 @@ type Props = {
 
 export function EngineHeader({ compact }: Props) {
   const router = useRouter();
-  const { progress } = useEngine();
+  const { progress, state, dismissStreakWarning } = useEngine();
   const { user } = useAuth();
   const { isTablet } = useEngineLayout();
   const progressLabel = `${progress.done}/${progress.total}`;
@@ -52,11 +51,8 @@ export function EngineHeader({ compact }: Props) {
   };
 
   return (
-    <Animated.View entering={FadeInDown.duration(420)} style={compact ? undefined : styles.clip}>
-      <BlurView
-        intensity={compact ? 0 : 42}
-        tint="systemUltraThinMaterialDark"
-        style={[styles.wrap, compact && styles.wrapCompact, isTablet && !compact && styles.wrapTablet]}>
+    <View style={compact ? undefined : styles.clip}>
+      <View style={[styles.wrap, compact && styles.wrapCompact, isTablet && !compact && styles.wrapTablet]}>
         <PressScale
           haptic="none"
           onPressIn={startHold}
@@ -70,17 +66,30 @@ export function EngineHeader({ compact }: Props) {
           />
         </PressScale>
         <PressScale haptic="light" onPress={registerTap} style={styles.titles}>
-          <Text style={[styles.kicker, compact && styles.kickerCompact]}>LIFE ENGINE</Text>
-          <Text style={styles.sub}>v1.0 · система жизни</Text>
+          <Text style={[styles.kicker, compact && styles.kickerCompact]} numberOfLines={1}>
+            {compact ? `${displayName(user)} • Life Engine` : `Привет, ${displayName(user)} 👋`}
+          </Text>
+          <Text style={styles.sub}>{compact ? 'система жизни' : 'Life Engine v1.0'}</Text>
+          {state.streakWarning ? <Text style={styles.warn}>стрик сброшен — день пропущен</Text> : null}
         </PressScale>
         <PressScale haptic="light" onPress={() => router.push('/profile')} style={styles.profile}>
+          <Text style={styles.profileName} numberOfLines={1}>
+            {displayName(user)}
+          </Text>
           <Text style={styles.profileAge}>{user?.age ?? '—'} лет</Text>
         </PressScale>
+        <StreakChip
+          days={Math.max(0, state.visitStreak || 0)}
+          compact={compact}
+          onPress={() => {
+            if (state.streakWarning) dismissStreakWarning();
+          }}
+        />
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{progressLabel}</Text>
         </View>
-      </BlurView>
-    </Animated.View>
+      </View>
+    </View>
   );
 }
 
@@ -97,7 +106,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 10,
     paddingBottom: 14,
-    backgroundColor: colors.glass,
+    backgroundColor: colors.card,
   },
   wrapCompact: {
     paddingHorizontal: 4,
@@ -116,7 +125,7 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 14,
     padding: 2,
-    backgroundColor: colors.card,
+    backgroundColor: colors.cardElevated,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -130,31 +139,39 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 17,
     fontWeight: '700',
-    letterSpacing: 2.4,
+    letterSpacing: 0.2,
     fontFamily: fonts,
   },
-  kickerCompact: { fontSize: 13, letterSpacing: 1.6 },
+  kickerCompact: { fontSize: 13, letterSpacing: 0 },
   sub: {
     ...type.footnote,
     marginTop: 2,
   },
+  warn: { color: colors.amber, fontSize: 11, fontWeight: '700', marginTop: 2 },
   profile: {
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.cardElevated,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 14,
+    alignItems: 'flex-end',
+    maxWidth: 120,
+  },
+  profileName: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '800',
   },
   profileAge: {
     color: colors.blue,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   badge: {
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.card,
+    backgroundColor: colors.cardElevated,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,

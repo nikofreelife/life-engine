@@ -1,7 +1,7 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { hapticLight } from '../src/haptics';
@@ -17,6 +17,18 @@ type Props = {
 export function NativeSheet({ visible, onClose, children, height = 'full' }: Props) {
   const insets = useSafeAreaInsets();
   const translateY = useSharedValue(0);
+
+  useEffect(() => {
+    if (!visible) {
+      translateY.value = 0;
+      return;
+    }
+    translateY.value = 56;
+    translateY.value = withTiming(0, {
+      duration: 220,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+    });
+  }, [visible, translateY]);
 
   const close = () => {
     void hapticLight();

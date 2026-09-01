@@ -20,9 +20,9 @@ import { hapticMedium, hapticSuccess, hapticWarning } from '../src/haptics';
 import { elapsedParts, money, monthMatrix, thcSavings, todayKey } from '../src/lib';
 import { useEngineLayout } from '../src/layout';
 import { useEngine } from '../src/store';
-import { colors } from '../src/theme';
+import { calendarTone, colors, moodTone } from '../src/theme';
 import { CUSTOM_SCALES, TRACK_TEMPLATES, scalePercent, templateOf } from '../src/tracks';
-import type { AbstinenceTrack, DayState, JournalKind } from '../src/types';
+import type { AbstinenceTrack, JournalKind } from '../src/types';
 
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const KIND_LABEL: Record<JournalKind, string> = {
@@ -505,7 +505,9 @@ export function SecretVault() {
 
       <View style={styles.card}>
         <Text style={[styles.cardKicker, { color: colors.amber }]}>Календарь чистоты</Text>
-        <Text style={styles.lead}>Фиксация состояния и эмоционального фона. Срыв — красный маркер.</Text>
+        <Text style={styles.lead}>
+          Нажми день и поставь статус-заметку: Чисто • Тяга • Срыв — цвет заливает клетку.
+        </Text>
         <View style={styles.weekRow}>
           {WEEK.map((d) => (
             <Text key={d} style={styles.week}>
@@ -518,15 +520,14 @@ export function SecretVault() {
             {row.map((day, j) => {
               if (!day) return <View key={j} style={styles.cell} />;
               const rec = secret.calendar[day];
-              const slip = rec?.state === 'slip';
-              const tone =
+              const fill =
                 rec?.state === 'clean'
-                  ? colors.emerald
+                  ? calendarTone.clean
                   : rec?.state === 'craving'
-                    ? colors.amber
-                    : slip
-                      ? colors.crimson
-                      : colors.border;
+                    ? calendarTone.craving
+                    : rec?.state === 'slip'
+                      ? calendarTone.slip
+                      : undefined;
               return (
                 <Pressable
                   key={day}
@@ -534,11 +535,10 @@ export function SecretVault() {
                   style={[
                     styles.cell,
                     styles.day,
-                    { borderColor: tone },
-                    slip && styles.daySlip,
+                    fill ? { backgroundColor: fill, borderColor: fill } : { borderColor: colors.border },
                     selected === day && styles.daySel,
                   ]}>
-                  <Text style={[styles.dayText, slip && styles.dayTextSlip]}>{Number(day.slice(-2))}</Text>
+                  <Text style={[styles.dayText, fill && styles.dayTextOn]}>{Number(day.slice(-2))}</Text>
                 </Pressable>
               );
             })}
@@ -550,38 +550,50 @@ export function SecretVault() {
           <Text style={styles.slipNote}>Срыв: {selectedDay.note}</Text>
         ) : null}
         <View style={styles.kindRow}>
-          {(['clean', 'craving', 'slip'] as DayState[]).map((s) => (
-            <Pressable
-              key={s}
-              onPress={() =>
-                setCalendarDay(selected, {
-                  state: s,
-                  mood: selectedDay?.mood ?? 3,
-                  note: selectedDay?.note ?? '',
-                })
-              }
-              style={[styles.kind, selectedDay?.state === s && styles.kindOn]}>
-              <Text style={[styles.kindText, selectedDay?.state === s && styles.kindTextOn]}>
-                {s === 'clean' ? 'чисто' : s === 'craving' ? 'тяга' : 'срыв'}
-              </Text>
-            </Pressable>
-          ))}
+          {([
+            { id: 'clean' as const, label: 'Чисто', color: calendarTone.clean },
+            { id: 'craving' as const, label: 'Тяга', color: calendarTone.craving },
+            { id: 'slip' as const, label: 'Срыв', color: calendarTone.slip },
+          ]).map((item) => {
+            const on = selectedDay?.state === item.id;
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() =>
+                  setCalendarDay(selected, {
+                    state: item.id,
+                    mood: selectedDay?.mood ?? 3,
+                    note: selectedDay?.note ?? '',
+                  })
+                }
+                style={[styles.statusPill, on && { backgroundColor: item.color, borderColor: item.color }]}>
+                <Text style={[styles.statusPillText, on && styles.statusPillTextOn]}>{item.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
         <Text style={styles.label}>Эмоциональный фон · {selectedDay?.mood ?? 3}/5</Text>
         <View style={styles.kindRow}>
-          {[1, 2, 3, 4, 5].map((n) => (
-            <Pressable
-              key={n}
-              onPress={() =>
-                setCalendarDay(selected, {
-                  state: selectedDay?.state ?? 'clean',
-                  mood: n,
-                  note: selectedDay?.note ?? '',
-                })
-              }
-              style={[styles.mood, (selectedDay?.mood ?? 0) >= n && styles.moodOn]}
-            />
-          ))}
+          {([1, 2, 3, 4, 5] as const).map((n) => {
+            const on = (selectedDay?.mood ?? 0) === n;
+            return (
+              <Pressable
+                key={n}
+                onPress={() =>
+                  setCalendarDay(selected, {
+                    state: selectedDay?.state ?? 'clean',
+                    mood: n,
+                    note: selectedDay?.note ?? '',
+                  })
+                }
+                style={[
+                  styles.mood,
+                  { backgroundColor: moodTone[n], borderColor: moodTone[n], opacity: on ? 1 : 0.38 },
+                  on && styles.moodOn,
+                ]}
+              />
+            );
+          })}
         </View>
         <TextInput
           value={selectedDay?.note ?? ''}
@@ -751,6 +763,19 @@ const styles = StyleSheet.create({
   kindOn: { backgroundColor: colors.crimson, borderColor: colors.crimson },
   kindText: { color: colors.muted, fontSize: 11, fontWeight: '700' },
   kindTextOn: { color: colors.bg },
+  statusPill: {
+    flex: 1,
+    minHeight: 40,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.cardElevated,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  statusPillText: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  statusPillTextOn: { color: colors.bg },
   barTrack: {
     height: 10,
     backgroundColor: '#0F141F',
@@ -767,20 +792,17 @@ const styles = StyleSheet.create({
   week: { flex: 1, textAlign: 'center', color: colors.faint, fontSize: 10, fontWeight: '700' },
   cell: { flex: 1, aspectRatio: 1, maxHeight: 52, alignItems: 'center', justifyContent: 'center' },
   day: { borderRadius: 10, backgroundColor: '#0F141F', borderWidth: 1 },
-  daySlip: { backgroundColor: colors.crimson },
-  daySel: { backgroundColor: colors.cardElevated },
+  daySel: { borderWidth: 2, borderColor: colors.white },
   dayText: { color: colors.text, fontSize: 12, fontWeight: '700' },
-  dayTextSlip: { color: colors.white },
+  dayTextOn: { color: colors.white },
   slipNote: { color: colors.crimson, fontWeight: '700', marginBottom: 8, lineHeight: 20 },
   mood: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: '#0F141F',
     borderWidth: 1,
-    borderColor: colors.amber,
   },
-  moodOn: { backgroundColor: colors.amber },
+  moodOn: { transform: [{ scale: 1.12 }] },
   addTrack: { gap: 8 },
   addRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   addBtn: {

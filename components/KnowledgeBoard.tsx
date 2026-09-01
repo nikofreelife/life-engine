@@ -1,37 +1,16 @@
 import { useEffect, useState } from 'react';
-import {
-  LayoutAnimation,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  UIManager,
-  View,
-} from 'react-native';
-import Animated, { FadeIn, LinearTransition, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { Easing, FadeIn, FadeOut, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { useAuth } from '../src/auth';
 import { ageGate } from '../src/age';
 import { KNOWLEDGE_FACTORS, KNOWLEDGE_GROUPS } from '../src/data/knowledge';
 import { useEngineLayout } from '../src/layout';
-import { accentGlow, colors, radius, spring, type, type Accent } from '../src/theme';
+import { accentGlow, colors, radius, type, type Accent } from '../src/theme';
 import type { KnowledgeFactor } from '../src/types';
 import { PressScale } from './PressScale';
 import { hapticLight } from '../src/haptics';
 import { AgeBadges, AgeDisclaimer } from './AgeRecommend';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
-
-function animate() {
-  LayoutAnimation.configureNext({
-    duration: 380,
-    create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
-    update: { type: LayoutAnimation.Types.spring, springDamping: 0.82 },
-    delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
-  });
-}
 
 function RichText({ text }: { text: string }) {
   const lines = text.split('\n');
@@ -68,26 +47,27 @@ function FactorAccordion({
   opened: boolean;
   onToggle: () => void;
 }) {
-  const rotation = useSharedValue(opened ? 180 : 0);
   const gate = ageGate(factor, age);
-  const chevron = useAnimatedStyle(() => ({
+  const rotation = useSharedValue(opened ? 180 : 0);
+
+  useEffect(() => {
+    rotation.value = withTiming(opened ? 180 : 0, {
+      duration: 180,
+      easing: Easing.bezier(0.4, 0, 0.2, 1),
+    });
+  }, [opened, rotation]);
+
+  const chevronStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.value}deg` }],
   }));
 
-  useEffect(() => {
-    rotation.value = withSpring(opened ? 180 : 0, spring);
-  }, [opened, rotation]);
-
   const toggle = () => {
     void hapticLight();
-    animate();
     onToggle();
   };
 
   return (
-    <Animated.View
-      layout={LinearTransition.springify().stiffness(300).damping(20)}
-      style={[styles.factor, { borderColor: colors[factor.accent] + '55' }]}>
+    <View style={[styles.factor, { borderColor: colors[factor.accent] + '55' }]}>
       <PressScale haptic="none" onPress={toggle} style={styles.factorHead} accessibilityRole="button">
         <View style={[styles.factorMark, { backgroundColor: accentGlow[factor.accent as Accent] }]}>
           <Text style={styles.factorEmoji}>{factor.emoji}</Text>
@@ -95,13 +75,13 @@ function FactorAccordion({
         <View style={{ flex: 1 }}>
           <Text style={styles.factorTitle}>{factor.title}</Text>
           <Text style={styles.factorDesc}>{factor.description}</Text>
-          <AgeBadges gate={gate} tone="body" />
+          <AgeBadges gate={gate} tone={factor.group === 'social' ? 'mind' : 'body'} />
         </View>
-        <Animated.Text style={[styles.chevron, chevron]}>⌄</Animated.Text>
+        <Animated.Text style={[styles.chevron, chevronStyle]}>⌄</Animated.Text>
       </PressScale>
       {opened ? (
-        <Animated.View entering={FadeIn.duration(220)} style={styles.factorBody}>
-          <AgeDisclaimer minAge={gate.minAge} tone="body" />
+        <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)} style={styles.factorBody}>
+          <AgeDisclaimer minAge={gate.minAge} tone={factor.group === 'social' ? 'mind' : 'body'} />
           {factor.sections.map((section, index) => (
             <View key={`${factor.id}-${index}`} style={styles.block}>
               {section.heading ? <Text style={styles.blockKicker}>{section.heading}</Text> : null}
@@ -110,7 +90,7 @@ function FactorAccordion({
           ))}
         </Animated.View>
       ) : null}
-    </Animated.View>
+    </View>
   );
 }
 
@@ -143,7 +123,7 @@ export function KnowledgeBoard() {
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Найти кодекс, практику, протокол..."
+        placeholder="Найти кодекс, НЛП, практику, протокол..."
         placeholderTextColor={colors.faint}
         style={[styles.search, isTablet && styles.searchTablet]}
       />
@@ -155,7 +135,13 @@ export function KnowledgeBoard() {
           <View key={factor.id}>
             {showGroup && group ? (
               <View style={styles.groupHead}>
-                <Text style={styles.groupEyebrow}>{factor.group === 'warrior' ? 'ФУНДАМЕНТ' : 'ИССЛЕДОВАНИЕ'}</Text>
+                <Text style={styles.groupEyebrow}>
+                  {factor.group === 'warrior'
+                    ? 'ФУНДАМЕНТ'
+                    : factor.group === 'social'
+                      ? 'СОЦИУМ'
+                      : 'ИССЛЕДОВАНИЕ'}
+                </Text>
                 <Text style={styles.groupTitle}>
                   {group.emoji}  {group.title}
                 </Text>

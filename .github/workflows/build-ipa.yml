@@ -75,9 +75,31 @@ jobs:
       - name: CocoaPods
         working-directory: ios
         run: |
+          set -euo pipefail
+          pod --version
           if [ -f Podfile ]; then
-            pod install
+            pod install --repo-update
           fi
+
+      - name: Disable signing on every target
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path("ios")
+          if not root.exists():
+              raise SystemExit("ios/ missing after prebuild")
+          changed = 0
+          for path in root.rglob("*.pbxproj"):
+              text = path.read_text(encoding="utf-8")
+              next_text = text.replace("CODE_SIGNING_ALLOWED = YES", "CODE_SIGNING_ALLOWED = NO")
+              next_text = next_text.replace('CODE_SIGN_STYLE = Automatic', 'CODE_SIGN_STYLE = Manual')
+              if next_text != text:
+                  path.write_text(next_text, encoding="utf-8")
+                  changed += 1
+                  print(f"unsigned: {path}")
+          print(f"patched {changed} pbxproj files")
+          PY
 
       - name: Build unsigned device app
         env:
@@ -165,11 +187,12 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.7-ipa
-          name: Life Engine v1.0.7 IPA
+          tag_name: v1.0.8-ipa
+          name: Life Engine v1.0.8 IPA
           body: |
             Unsigned universal IPA (iPhone + iPad) for Sideloadly / AltStore.
             Real arm64 Mach-O from Xcode 26, with AppIcon on the home screen.
-            Landscape uses the sidebar; portrait uses tabs.
+            New Screen Time tab: FamilyActivityPicker + DeviceActivity + ManagedSettings.
+            OS-level app blocking needs Apple Family Controls on a paid team; Sideloadly may strip that entitlement.
           files: LifeEngine.ipa
           fail_on_unmatched_files: true

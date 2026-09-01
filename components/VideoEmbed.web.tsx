@@ -5,6 +5,7 @@ import { PlayerChrome } from './PlayerChrome';
 import {
   cropYouTubeIframe,
   END_GUARD_SEC,
+  openYoutubeWatch,
   safeMediaId,
   YOUTUBE_PLAYER_VARS,
   type VideoEmbedProps,
@@ -301,8 +302,13 @@ export function VideoEmbed({ source, cinema, onCinemaChange, onEnded }: VideoEmb
         {!started && !error ? <View style={styles.cover} pointerEvents="none" /> : null}
         {ending ? <View style={styles.cover} pointerEvents="none" /> : null}
         {error ? (
-          <View style={styles.msgBox} pointerEvents="none">
+          <View style={styles.msgBox}>
             <Text style={styles.msg}>{error}</Text>
+            {source.type === 'youtube' ? (
+              <Pressable onPress={() => void openYoutubeWatch(source.id)} style={styles.openYt}>
+                <Text style={styles.openYtText}>Смотреть в YouTube / Открыть ссылку</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
         {cinema && hint ? (
@@ -363,4 +369,12 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   msg: { color: colors.muted, textAlign: 'center' },
+  openYt: {
+    marginTop: 16,
+    backgroundColor: colors.crimson,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  openYtText: { color: colors.white, fontWeight: '800', textAlign: 'center' },
 });

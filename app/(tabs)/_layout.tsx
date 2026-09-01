@@ -44,6 +44,7 @@ export default function TabLayout() {
           <Tabs.Screen name="index" options={{ title: 'Книги' }} />
           <Tabs.Screen name="learn" options={{ title: 'Учёба' }} />
           <Tabs.Screen name="health" options={{ title: 'Тело' }} />
+          <Tabs.Screen name="screentime" options={{ title: 'Экранное Время' }} />
           <Tabs.Screen name="knowledge" options={{ title: 'Знания' }} />
           <Tabs.Screen name="video" options={{ title: 'Видео' }} />
           <Tabs.Screen name="coach" options={{ title: 'AI' }} />

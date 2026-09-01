@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["LifeEngineScreenTimeModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.lifeenginescreentime.LifeEngineScreenTimeModule"]
+  }
+}

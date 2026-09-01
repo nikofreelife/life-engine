@@ -1,3 +1,6 @@
+import { Linking, Platform } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+
 export type PlayerSource =
   | { type: 'youtube'; id: string }
   | { type: 'vimeo'; id: string }
@@ -22,6 +25,28 @@ export function formatTimecode(sec: number) {
 
 export function safeMediaId(id: string) {
   return /^[\w-]{1,32}$/.test(id) ? id : '';
+}
+
+export function youtubeWatchUrl(id: string) {
+  const safe = safeMediaId(id);
+  return safe ? `https://www.youtube.com/watch?v=${safe}` : 'https://www.youtube.com';
+}
+
+export function youtubeEmbedQuery(origin = '*') {
+  return `enablejsapi=1&origin=${encodeURIComponent(origin)}&rel=0&modestbranding=1&playsinline=1`;
+}
+
+export async function openYoutubeWatch(id: string) {
+  const url = youtubeWatchUrl(id);
+  try {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    await WebBrowser.openBrowserAsync(url);
+  } catch {
+    await Linking.openURL(url);
+  }
 }
 
 /** Hide YouTube title/logo by cropping the iframe; stream still comes from YT. */
@@ -50,6 +75,8 @@ export const YOUTUBE_PLAYER_VARS = {
   hl: 'ru',
   cc_lang_pref: 'ru',
   enablejsapi: 1,
+  origin: '*',
+  widget_referrer: '*',
 } as const;
 
 export const END_GUARD_SEC = 1.2;
@@ -82,7 +109,8 @@ export function playerHtml(source: Extract<PlayerSource, { type: 'youtube' | 'vi
   #play,#fs{width:44px;height:44px;border-radius:12px;border:1px solid #1E293B;background:#181D2A;color:#F8FAFC;font-size:16px}
   #time{color:#94A3B8;font-weight:700;font-size:13px}
   #brand{margin-left:auto;color:#8B5CF6;font-weight:800;font-size:11px;letter-spacing:.8px;text-transform:uppercase}
-  #msg{position:absolute;inset:0;z-index:7;display:none;align-items:center;justify-content:center;padding:24px;text-align:center;color:#94A3B8;background:#000}
+  #msg{position:absolute;inset:0;z-index:7;display:none;align-items:center;justify-content:center;padding:24px;text-align:center;color:#94A3B8;background:#000;flex-direction:column;gap:14px}
+  #msg button{border:0;border-radius:14px;background:#EF4444;color:#fff;font-weight:800;padding:12px 16px}
 </style>
 </head>
 <body>
@@ -138,7 +166,10 @@ export function playerHtml(source: Extract<PlayerSource, { type: 'youtube' | 'vi
   }
   function fail(text){
     msg.style.display='flex';
-    msg.textContent=text;
+    msg.innerHTML='<div>'+text+'</div><button type="button" id="ytOpen">Смотреть в YouTube / Открыть ссылку</button>';
+    var btn=document.getElementById('ytOpen');
+    if(btn) btn.onclick=function(){ notify('openyt'); };
+    notify('error');
   }
   function setTime(cur,dur){
     if(dur&&isFinite(dur)) duration=dur;
@@ -200,7 +231,7 @@ export function playerHtml(source: Extract<PlayerSource, { type: 'youtube' | 'vi
         playerVars:{
           autoplay:1, mute:1, controls:0, disablekb:1, fs:0, modestbranding:1,
           playsinline:1, rel:0, iv_load_policy:3, cc_load_policy:0,
-          hl:'ru', cc_lang_pref:'ru', enablejsapi:1, origin:location.origin
+          hl:'ru', cc_lang_pref:'ru', enablejsapi:1, origin:'*', widget_referrer:'*'
         },
         events:{
           onReady:function(){

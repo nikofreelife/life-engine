@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -13,8 +14,21 @@ import {
 import { ACCOUNTS_KEY, SESSION_KEY, hashPin, uid, userPassKey } from './lib';
 import type { UserAccount } from './types';
 
+export function normalizeIdentity(value: string) {
+  return value.trim().toLowerCase();
+}
+
+export function displayName(user: { name?: string; email?: string } | null) {
+  const named = user?.name?.trim();
+  if (named) return named;
+  const email = user?.email?.trim() ?? '';
+  if (email.includes('@')) return email.split('@')[0] || 'друг';
+  return email || 'друг';
+}
+
 type SignUpInput = {
   email: string;
+  name: string;
   password?: string;
   age: number;
   local?: boolean;
@@ -28,6 +42,8 @@ type AuthContextValue = {
   signIn: (email: string, password?: string) => Promise<void>;
   signInAccount: (id: string, password?: string) => Promise<void>;
   updateAge: (age: number) => Promise<void>;
+  updateName: (name: string) => Promise<void>;
+  updateProfile: (input: { name: string; age: number }) => Promise<void>;
   signOut: () => Promise<void>;
   hasPassword: (id: string) => Promise<boolean>;
 };
@@ -36,17 +52,38 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function readPass(id: string) {
   try {
-    return await SecureStore.getItemAsync(userPassKey(id));
+    const secure = await SecureStore.getItemAsync(userPassKey(id));
+    if (secure) return secure;
   } catch {
-    return null;
+    /* web */
   }
+  return AsyncStorage.getItem(userPassKey(id));
 }
 
 async function writePass(id: string, password: string) {
+  const hashed = hashPin(password);
   try {
-    await SecureStore.setItemAsync(userPassKey(id), hashPin(password));
+    await SecureStore.setItemAsync(userPassKey(id), hashed);
   } catch {
-    /* web / unsupported — account still works as local */
+    /* web / unsupported */
+  }
+  await AsyncStorage.setItem(userPassKey(id), hashed);
+  return hashed;
+}
+
+async function loadAccounts(): Promise<UserAccount[]> {
+  const raw = await AsyncStorage.getItem(ACCOUNTS_KEY);
+  if (!raw) return [];
+  try {
+    const list = JSON.parse(raw) as UserAccount[];
+    if (!Array.isArray(list)) return [];
+    return list.map((entry) => ({
+      ...entry,
+      email: normalizeIdentity(entry.email),
+      name: (entry.name ?? '').trim() || displayName(entry),
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -72,6 +109,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<UserAccount[]>([]);
   const [user, setUser] = useState<UserAccount | null>(null);
   const [ready, setReady] = useState(false);
+  const userRef = useRef<UserAccount | null>(null);
+  userRef.current = user;
 
   useEffect(() => {
     let alive = true;
@@ -81,8 +120,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const list = raw ? (JSON.parse(raw) as UserAccount[]) : [];
         const sessionId = await readSession();
         if (!alive) return;
-        setAccounts(Array.isArray(list) ? list : []);
-        setUser(list.find((entry) => entry.id === sessionId) ?? null);
+        let dirty = false;
+        const registry = Array.isArray(list)
+          ? list.map((entry) => {
+              const name = (entry.name ?? '').trim() || displayName(entry);
+              if (name !== (entry.name ?? '')) dirty = true;
+              return {
+                ...entry,
+                email: normalizeIdentity(entry.email),
+                name,
+              };
+            })
+          : [];
+        if (dirty) {
+          await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(registry));
+        }
+        setAccounts(registry);
+        setUser(registry.find((entry) => entry.id === sessionId) ?? null);
       } catch {
         if (alive) {
           setAccounts([]);
@@ -112,19 +166,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return n;
   };
 
+  const patchAccount = useCallback(
+    async (patch: Partial<Pick<UserAccount, 'name' | 'age'>>) => {
+      const current = userRef.current;
+      if (!current) throw new Error('Нет аккаунта');
+      const registry = await loadAccounts();
+      const stored = registry.find((entry) => entry.id === current.id) ?? current;
+      const next: UserAccount = { ...stored, ...patch };
+      await persist(
+        registry.map((entry) => (entry.id === current.id ? next : entry)),
+        next,
+      );
+    },
+    [persist],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ready,
       user,
       accounts,
-      signUp: async ({ email, password, age, local }) => {
+      signUp: async ({ email, name, password, age, local }) => {
         const years = parseAge(age);
-        const trimmed = email.trim();
-        const normalized = local
-          ? trimmed || `local-${uid('acc')}`
-          : trimmed.toLowerCase();
-        if (local && !trimmed) {
+        const registry = await loadAccounts();
+        const normalized = normalizeIdentity(email);
+        const display = name.trim();
+        if (!display) {
+          throw new Error('Введи своё имя');
+        }
+        if (local && !normalized) {
           throw new Error('Введи имя локального аккаунта');
+        }
+        if (!normalized) {
+          throw new Error('Введи e-mail или имя аккаунта');
         }
         if (!local) {
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
@@ -134,56 +208,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             throw new Error('Пароль — минимум 4 символа');
           }
         }
-        if (accounts.some((entry) => entry.email.toLowerCase() === normalized.toLowerCase())) {
+        if (registry.some((entry) => normalizeIdentity(entry.email) === normalized)) {
           throw new Error('Такой аккаунт уже есть на этом устройстве');
         }
         const account: UserAccount = {
           id: uid('usr'),
           email: normalized,
+          name: display,
           age: years,
           createdAt: new Date().toISOString(),
           local: Boolean(local) || !password,
         };
-        if (password) await writePass(account.id, password);
-        await persist([...accounts, account], account);
+        if (password) {
+          account.passHash = await writePass(account.id, password);
+        }
+        await persist([...registry, account], account);
       },
       signIn: async (email, password) => {
-        const normalized = email.trim().toLowerCase();
-        const account = accounts.find((entry) => entry.email.toLowerCase() === normalized);
+        const normalized = normalizeIdentity(email);
+        const registry = await loadAccounts();
+        const account = registry.find((entry) => normalizeIdentity(entry.email) === normalized);
         if (!account) throw new Error('Аккаунт не найден');
-        const stored = await readPass(account.id);
-        if (stored && hashPin(password ?? '') !== stored) {
-          throw new Error('Неверный пароль');
+        const stored = (await readPass(account.id)) || account.passHash || null;
+        if (stored) {
+          if (!password) throw new Error('Введи пароль');
+          if (hashPin(password) !== stored) throw new Error('Неверный пароль');
         }
-        if (!stored && password) {
-          throw new Error('У этого аккаунта нет пароля — выбери его в списке локальных');
-        }
-        await persist(accounts, account);
+        await persist(registry, account);
       },
       signInAccount: async (id, password) => {
-        const account = accounts.find((entry) => entry.id === id);
+        const registry = await loadAccounts();
+        const account = registry.find((entry) => entry.id === id);
         if (!account) throw new Error('Аккаунт не найден');
-        const stored = await readPass(account.id);
-        if (stored && hashPin(password ?? '') !== stored) {
+        const stored = (await readPass(account.id)) || account.passHash || null;
+        if (stored && password && hashPin(password) !== stored) {
           throw new Error('Неверный пароль');
         }
-        await persist(accounts, account);
+        await persist(registry, account);
       },
       updateAge: async (age) => {
-        if (!user) return;
-        const years = parseAge(age);
-        const next = { ...user, age: years };
-        await persist(
-          accounts.map((entry) => (entry.id === user.id ? next : entry)),
-          next,
-        );
+        await patchAccount({ age: parseAge(age) });
+      },
+      updateName: async (name) => {
+        const display = name.trim();
+        if (!display) throw new Error('Введи своё имя');
+        await patchAccount({ name: display });
+      },
+      updateProfile: async ({ name, age }) => {
+        const display = name.trim();
+        if (!display) throw new Error('Введи своё имя');
+        await patchAccount({ name: display, age: parseAge(age) });
       },
       signOut: async () => {
         await persist(accounts, null);
       },
       hasPassword: async (id) => Boolean(await readPass(id)),
     }),
-    [accounts, persist, ready, user],
+    [accounts, persist, ready, user, patchAccount],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

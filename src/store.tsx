@@ -16,19 +16,26 @@ import { ALL_SECTIONS, TRACKED_ITEMS } from './data/catalog';
 import {
   STORAGE_KEY,
   LEGACY_MIGRATED_KEY,
+  applyVisitStreak,
   defaultItem,
   emptyState,
   hashPin,
   normalizeHabit,
+  stripUnusedSeedHabits,
   todayKey,
   uid,
   userPinKey,
   userStorageKey,
+  COACH_PROMPT_REV,
+  blankCoachChat,
+  titleFromPrompt,
+  activeCoachChat,
 } from './lib';
 import type {
   CalendarDay,
   CatalogItem,
   CatalogSection,
+  CoachChatThread,
   CoachMessage,
   EngineState,
   Habit,
@@ -44,7 +51,17 @@ import type {
   VideoWatchStatus,
   AbstinenceTrack,
   BreathLog,
+  ScreenTimeSelection,
 } from './types';
+import {
+  clampMinutes,
+  clampRepeats,
+  hydrateScreenTime,
+  makeBypassEvent,
+  normalizeDays,
+  normalizePhrase,
+  phraseMatches,
+} from './screentime';
 import { makeTrack, migrateTracks } from './tracks';
 
 type EngineContextValue = {
@@ -74,6 +91,12 @@ type EngineContextValue = {
   addBreathLog: (log: BreathLog) => void;
   addCoachMessage: (role: 'user' | 'coach', text: string) => void;
   clearCoach: () => void;
+  newCoachChat: () => void;
+  selectCoachChat: (id: string) => void;
+  renameCoachChat: (id: string, title: string) => void;
+  deleteCoachChat: (id: string) => void;
+  dismissStreakWarning: () => void;
+  dismissStreakCelebrate: () => void;
   setCalendarDay: (day: string, value: CalendarDay) => void;
   addCustomSection: (tab: TabKey, title: string, description: string, accent: CatalogSection['accent']) => void;
   removeCustomSection: (id: string) => void;
@@ -81,6 +104,19 @@ type EngineContextValue = {
   removeSectionItem: (sectionId: string, itemId: string) => void;
   sectionsFor: (tab: TabKey, builtin: CatalogSection[]) => CatalogSection[];
   progress: { done: number; total: number; ratio: number };
+  setScreenPhrase: (phrase: string) => void;
+  setScreenRepeats: (repeats: number) => void;
+  setScreenSelection: (selection: ScreenTimeSelection | null) => void;
+  patchScreenLimits: (patch: {
+    weeklyLimitMin?: number;
+    dailyCapMin?: number;
+    useDayGrid?: boolean;
+    dayLimitsMin?: number[];
+  }) => void;
+  openScreenUnlock: () => void;
+  submitScreenPhrase: (typed: string) => 'ok' | 'mismatch' | 'unlocked' | 'idle';
+  setScreenNativeLocked: (locked: boolean) => void;
+  setScreenBypassUntil: (iso: string | null) => void;
 };
 
 const EngineContext = createContext<EngineContextValue | null>(null);
@@ -151,17 +187,65 @@ async function writePinHash(userId: string, hash: string) {
   }
 }
 
+function hydrateCoach(parsed: EngineState) {
+  if (parsed.coachPromptRev !== COACH_PROMPT_REV) {
+    const fresh = blankCoachChat();
+    return {
+      coachChats: [fresh],
+      activeCoachChatId: fresh.id,
+      coachMessages: [] as CoachMessage[],
+      coachPromptRev: COACH_PROMPT_REV,
+    };
+  }
+  const existing = parsed.coachChats?.filter((chat) => chat?.id);
+  if (existing?.length) {
+    const activeId =
+      existing.some((chat) => chat.id === parsed.activeCoachChatId)
+        ? parsed.activeCoachChatId
+        : existing[0].id;
+    const active = existing.find((chat) => chat.id === activeId) ?? existing[0];
+    return {
+      coachChats: existing,
+      activeCoachChatId: active.id,
+      coachMessages: active.messages ?? [],
+      coachPromptRev: COACH_PROMPT_REV,
+    };
+  }
+  const legacy = parsed.coachMessages ?? [];
+  const fresh = blankCoachChat();
+  const migrated: CoachChatThread = legacy.length
+    ? {
+        ...fresh,
+        title: titleFromPrompt(legacy.find((msg) => msg.role === 'user')?.text ?? ''),
+        messages: legacy,
+      }
+    : fresh;
+  return {
+    coachChats: [migrated],
+    activeCoachChatId: migrated.id,
+    coachMessages: migrated.messages,
+    coachPromptRev: COACH_PROMPT_REV,
+  };
+}
+
 function hydrateState(parsed: EngineState, pinHash: string | null): EngineState {
+  const coach = hydrateCoach(parsed);
   return {
     ...emptyState(),
     ...parsed,
     customSections: parsed.customSections ?? [],
     extraItems: parsed.extraItems ?? {},
-    coachMessages: parsed.coachMessages ?? [],
+    ...coach,
     videoInsights: parsed.videoInsights ?? {},
     videoWatch: parsed.videoWatch ?? {},
     breathLogs: parsed.breathLogs ?? [],
-    habits: (parsed.habits ?? emptyState().habits).map(normalizeHabit),
+    habits: stripUnusedSeedHabits((parsed.habits ?? []).map(normalizeHabit)),
+    visitStreak: parsed.visitStreak ?? 0,
+    lastLoginDate: parsed.lastLoginDate ?? '',
+    lastLoginAt: parsed.lastLoginAt ?? '',
+    streakWarning: Boolean(parsed.streakWarning),
+    streakCelebrate: Boolean(parsed.streakCelebrate),
+    screenTime: hydrateScreenTime(parsed.screenTime),
     secret: {
       ...emptyState().secret,
       ...parsed.secret,
@@ -213,13 +297,15 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         const pinHash = await readPinHash(user.id);
         if (!alive) return;
         if (raw) {
-          setState(hydrateState(JSON.parse(raw) as EngineState, pinHash));
+          setState(applyVisitStreak(hydrateState(JSON.parse(raw) as EngineState, pinHash)));
         } else {
           const base = emptyState();
-          setState({
-            ...base,
-            secret: { ...base.secret, pinHash, tracks: migrateTracks(base.secret) },
-          });
+          setState(
+            applyVisitStreak({
+              ...base,
+              secret: { ...base.secret, pinHash, tracks: migrateTracks(base.secret) },
+            }),
+          );
         }
         loadedId.current = user.id;
       } catch {
@@ -424,10 +510,89 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           text,
           atISO: new Date().toISOString(),
         };
-        mutate((prev) => ({ ...prev, coachMessages: [...prev.coachMessages, message] }));
+        mutate((prev) => {
+          const chats = prev.coachChats?.length ? prev.coachChats : [blankCoachChat()];
+          const activeId =
+            chats.some((chat) => chat.id === prev.activeCoachChatId)
+              ? prev.activeCoachChatId
+              : chats[0].id;
+          const nextChats = chats.map((chat) => {
+            if (chat.id !== activeId) return chat;
+            const hadUser = chat.messages.some((msg) => msg.role === 'user');
+            const messages = [...chat.messages, message];
+            const title =
+              role === 'user' && (!hadUser || chat.title === 'Новый чат')
+                ? titleFromPrompt(text)
+                : chat.title;
+            return { ...chat, title, messages, updatedAt: message.atISO };
+          });
+          const active = nextChats.find((chat) => chat.id === activeId) ?? nextChats[0];
+          return {
+            ...prev,
+            coachChats: nextChats,
+            activeCoachChatId: active.id,
+            coachMessages: active.messages,
+          };
+        });
       },
       clearCoach: () => {
-        mutate((prev) => ({ ...prev, coachMessages: [] }));
+        mutate((prev) => {
+          const active = activeCoachChat(prev);
+          const nextChats = (prev.coachChats ?? [active]).map((chat) =>
+            chat.id === active.id ? { ...chat, messages: [], updatedAt: new Date().toISOString() } : chat,
+          );
+          return { ...prev, coachChats: nextChats, coachMessages: [] };
+        });
+      },
+      newCoachChat: () => {
+        mutate((prev) => {
+          const fresh = blankCoachChat();
+          return {
+            ...prev,
+            coachChats: [fresh, ...(prev.coachChats ?? [])],
+            activeCoachChatId: fresh.id,
+            coachMessages: [],
+          };
+        });
+      },
+      selectCoachChat: (id) => {
+        mutate((prev) => {
+          const chat = (prev.coachChats ?? []).find((item) => item.id === id);
+          if (!chat) return prev;
+          return { ...prev, activeCoachChatId: id, coachMessages: chat.messages };
+        });
+      },
+      renameCoachChat: (id, title) => {
+        const clean = title.replace(/\s+/g, ' ').trim();
+        if (!clean) return;
+        mutate((prev) => ({
+          ...prev,
+          coachChats: (prev.coachChats ?? []).map((chat) =>
+            chat.id === id ? { ...chat, title: clean, updatedAt: new Date().toISOString() } : chat,
+          ),
+        }));
+      },
+      deleteCoachChat: (id) => {
+        mutate((prev) => {
+          const remaining = (prev.coachChats ?? []).filter((chat) => chat.id !== id);
+          const next = remaining.length ? remaining : [blankCoachChat()];
+          const active =
+            prev.activeCoachChatId === id
+              ? next[0]
+              : next.find((chat) => chat.id === prev.activeCoachChatId) ?? next[0];
+          return {
+            ...prev,
+            coachChats: next,
+            activeCoachChatId: active.id,
+            coachMessages: active.messages,
+          };
+        });
+      },
+      dismissStreakWarning: () => {
+        mutate((prev) => ({ ...prev, streakWarning: false }));
+      },
+      dismissStreakCelebrate: () => {
+        mutate((prev) => ({ ...prev, streakCelebrate: false }));
       },
       setCalendarDay: (day, value) => {
         mutate((prev) => ({
@@ -505,6 +670,92 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         }));
         const custom = state.customSections.filter((section) => section.tab === tab);
         return [...withExtras, ...custom];
+      },
+      setScreenPhrase: (phrase) => {
+        mutate((prev) => {
+          const next = normalizePhrase(phrase) || prev.screenTime.phrase;
+          const changed = next !== prev.screenTime.phrase;
+          return {
+            ...prev,
+            screenTime: {
+              ...prev.screenTime,
+              phrase: next,
+              unlock: changed ? null : prev.screenTime.unlock,
+            },
+          };
+        });
+      },
+      setScreenRepeats: (repeats) => {
+        mutate((prev) => ({ ...prev, screenTime: { ...prev.screenTime, repeats: clampRepeats(repeats) } }));
+      },
+      setScreenSelection: (selection) => {
+        mutate((prev) => ({
+          ...prev,
+          screenTime: { ...prev.screenTime, selection, nativeLocked: selection ? prev.screenTime.nativeLocked : false },
+        }));
+      },
+      patchScreenLimits: (patch) => {
+        mutate((prev) => {
+          const weeklyLimitMin = patch.weeklyLimitMin != null ? clampMinutes(patch.weeklyLimitMin, 0) : prev.screenTime.weeklyLimitMin;
+          const dailyCapMin = patch.dailyCapMin != null ? clampMinutes(patch.dailyCapMin, 0) : prev.screenTime.dailyCapMin;
+          const useDayGrid = patch.useDayGrid ?? prev.screenTime.useDayGrid;
+          const dayLimitsMin = patch.dayLimitsMin
+            ? normalizeDays(patch.dayLimitsMin, dailyCapMin)
+            : prev.screenTime.dayLimitsMin;
+          return {
+            ...prev,
+            screenTime: { ...prev.screenTime, weeklyLimitMin, dailyCapMin, useDayGrid, dayLimitsMin },
+          };
+        });
+      },
+      openScreenUnlock: () => {
+        mutate((prev) => ({
+          ...prev,
+          screenTime: {
+            ...prev.screenTime,
+            unlock: prev.screenTime.unlock ?? { completed: 0, startedAt: new Date().toISOString() },
+            nativeLocked: true,
+          },
+        }));
+      },
+      submitScreenPhrase: (typed) => {
+        let result: 'ok' | 'mismatch' | 'unlocked' | 'idle' = 'idle';
+        mutate((prev) => {
+          const unlock = prev.screenTime.unlock;
+          if (!unlock) return prev;
+          if (!phraseMatches(typed, prev.screenTime.phrase)) {
+            result = 'mismatch';
+            return prev;
+          }
+          const completed = unlock.completed + 1;
+          if (completed < prev.screenTime.repeats) {
+            result = 'ok';
+            return {
+              ...prev,
+              screenTime: { ...prev.screenTime, unlock: { ...unlock, completed } },
+            };
+          }
+          result = 'unlocked';
+          const until = new Date();
+          until.setHours(23, 59, 59, 999);
+          return {
+            ...prev,
+            screenTime: {
+              ...prev.screenTime,
+              unlock: null,
+              nativeLocked: false,
+              bypassUntil: until.toISOString(),
+              bypassLog: [makeBypassEvent(prev.screenTime.repeats), ...prev.screenTime.bypassLog].slice(0, 80),
+            },
+          };
+        });
+        return result;
+      },
+      setScreenNativeLocked: (locked) => {
+        mutate((prev) => ({ ...prev, screenTime: { ...prev.screenTime, nativeLocked: locked } }));
+      },
+      setScreenBypassUntil: (iso) => {
+        mutate((prev) => ({ ...prev, screenTime: { ...prev.screenTime, bypassUntil: iso, nativeLocked: iso ? false : prev.screenTime.nativeLocked } }));
       },
       progress: {
         done: progressDone,

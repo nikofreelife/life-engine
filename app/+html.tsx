@@ -48,4 +48,24 @@ input, textarea {
 * {
   scrollbar-width: none;
 }
+@keyframes le-flame {
+  0%, 100% { transform: translateZ(0) scale(1) rotate(-8deg); opacity: 1; }
+  50% { transform: translateZ(0) scale(1.28) rotate(8deg); opacity: 0.82; }
+}
+@keyframes le-spark {
+  0%, 100% { opacity: 0; transform: translate(0px, 4px) scale(0.4); }
+  35% { opacity: 1; transform: translate(5px, -9px) scale(1); }
+  70% { opacity: 0.2; transform: translate(9px, -14px) scale(0.5); }
+}
+.le-flame {
+  display: inline-block;
+  transform-origin: center bottom;
+  animation: le-flame 0.76s ease-in-out infinite;
+  will-change: transform;
+}
+.le-spark {
+  display: inline-block;
+  animation: le-spark 1.1s ease-out infinite;
+  pointer-events: none;
+}
 `;

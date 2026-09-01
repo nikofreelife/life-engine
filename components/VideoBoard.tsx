@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ViewStyle } from 'react-native';
 import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { PressScale } from './PressScale';
 import { AnalysisModal } from './AnalysisModal';
@@ -9,7 +9,7 @@ import { VideoPlayerModal } from './VideoPlayerModal';
 import { FREEMAN_EPISODES, FREEMAN_GROUPS, episodeThumb, type FreemanEpisode } from '../src/data/freeman';
 import { RESOURCE_LINKS } from '../src/data/resources';
 import { useEngine } from '../src/store';
-import { cardShadow, colors } from '../src/theme';
+import { colors } from '../src/theme';
 import type { VideoWatchStatus } from '../src/types';
 
 function EpisodeCard({
@@ -29,7 +29,7 @@ function EpisodeCard({
   const thumb = episodeThumb(episode);
 
   return (
-    <View style={[styles.ep, watched && styles.epWatched, cardShadow]}>
+    <View style={[styles.ep, watched && styles.epWatched]}>
       <PressScale
         haptic="medium"
         onPress={onPlay}
@@ -95,7 +95,8 @@ export function VideoBoard() {
   return (
     <View>
       <View style={styles.factor}>
-        <Pressable
+        <PressScale
+          haptic="light"
           onPress={() => setOpen((v) => (v === 'philosophy' ? null : 'philosophy'))}
           style={styles.factorHead}>
           <Text style={styles.emoji}>🎬</Text>
@@ -104,9 +105,9 @@ export function VideoBoard() {
             <Text style={styles.factorDesc}>Плеер внутри приложения. Превью, статус просмотра и разбор ИИ.</Text>
           </View>
           <Text style={styles.chevron}>{open === 'philosophy' ? '⌃' : '⌄'}</Text>
-        </Pressable>
+        </PressScale>
         {open === 'philosophy' ? (
-          <Animated.View entering={FadeIn.duration(160)} layout={LinearTransition.duration(180)} style={styles.factorBody}>
+          <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)} style={styles.factorBody}>
             <View style={styles.progressBox}>
               <Text style={styles.progressLabel}>
                 Просмотрено {watched} / {total} серий (канон 00–64+)
@@ -212,11 +213,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.88)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
   },
   playIcon: { color: colors.white, fontSize: 22, marginLeft: 4 },
   seenBadge: {

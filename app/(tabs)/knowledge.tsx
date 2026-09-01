@@ -8,7 +8,7 @@ export default function KnowledgeScreen() {
       <ScreenHeader
         kicker="База знаний"
         title="База знаний"
-        lead="Кодекс воина, контуры тела и методика. Только аккордеоны — без галочек и статусов."
+        lead="Кодекс воина, социальная динамика, контуры тела. Только аккордеоны — без галочек и статусов."
         accent={colors.blue}
       />
       <KnowledgeBoard />
