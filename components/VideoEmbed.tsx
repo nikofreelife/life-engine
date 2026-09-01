@@ -1,13 +1,14 @@
 import { createElement, useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { WatchYoutubeButton } from './WatchYoutubeButton';
 import { PlayerChrome } from './PlayerChrome';
 import {
   cropYouTubeIframe,
   END_GUARD_SEC,
   openYoutubeWatch,
   safeMediaId,
-  YOUTUBE_PLAYER_VARS,
+  youtubePlayerVars,
   type VideoEmbedProps,
 } from '../src/player';
 import { colors } from '../src/theme';
@@ -140,10 +141,7 @@ export function VideoEmbed({ source, cinema, onCinemaChange, onEnded }: VideoEmb
           videoId: id,
           width: '100%',
           height: '100%',
-          playerVars: {
-            ...YOUTUBE_PLAYER_VARS,
-            origin: window.location.origin,
-          },
+          playerVars: youtubePlayerVars(),
           events: {
             onReady: () => {
               if (dead) return;
@@ -182,7 +180,10 @@ export function VideoEmbed({ source, cinema, onCinemaChange, onEnded }: VideoEmb
               }
               if (e.data === window.YT?.PlayerState.ENDED) finish();
             },
-            onError: () => setError('Этот ролик нельзя открыть во встроенном плеере.'),
+            onError: () => {
+              setError('Этот ролик нельзя открыть во встроенном плеере.');
+              void openYoutubeWatch(id);
+            },
           },
         });
         ytRef.current = yt;
@@ -299,16 +300,11 @@ export function VideoEmbed({ source, cinema, onCinemaChange, onEnded }: VideoEmb
             else if (started) toggle();
           }}
         />
-        {!started && !error ? <View style={styles.cover} pointerEvents="none" /> : null}
-        {ending ? <View style={styles.cover} pointerEvents="none" /> : null}
+        {!started && !error ? <View style={styles.cover} /> : null}
+        {ending ? <View style={styles.cover} /> : null}
         {error ? (
           <View style={styles.msgBox}>
             <Text style={styles.msg}>{error}</Text>
-            {source.type === 'youtube' ? (
-              <Pressable onPress={() => void openYoutubeWatch(source.id)} style={styles.openYt}>
-                <Text style={styles.openYtText}>Смотреть в YouTube / Открыть ссылку</Text>
-              </Pressable>
-            ) : null}
           </View>
         ) : null}
         {cinema && hint ? (
@@ -327,6 +323,7 @@ export function VideoEmbed({ source, cinema, onCinemaChange, onEnded }: VideoEmb
           onFullscreen={() => onCinemaChange?.(true)}
         />
       )}
+      {source.type === 'youtube' ? <WatchYoutubeButton id={source.id} /> : null}
     </View>
   );
 }
@@ -343,6 +340,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: '#000',
     zIndex: 4,
+    pointerEvents: 'none',
   },
   exit: {
     position: 'absolute',
@@ -369,12 +367,4 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   msg: { color: colors.muted, textAlign: 'center' },
-  openYt: {
-    marginTop: 16,
-    backgroundColor: colors.crimson,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  openYtText: { color: colors.white, fontWeight: '800', textAlign: 'center' },
 });

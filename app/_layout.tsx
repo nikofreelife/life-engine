@@ -5,10 +5,9 @@ import { useEffect, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
-import { StreakBanner } from '@/components/StreakBadge';
+import { StreakFireModal } from '@/components/StreakBadge';
 import { ScreenTimeLock } from '@/components/ScreenTimeLock';
 import { AuthProvider, useAuth } from '@/src/auth';
 import { EngineProvider, useEngine } from '@/src/store';
@@ -57,16 +56,9 @@ function AuthGate({ children }: { children: ReactNode }) {
 }
 
 function StreakHost() {
-  const insets = useSafeAreaInsets();
   const { state, dismissStreakCelebrate } = useEngine();
   if (!state.streakCelebrate) return null;
-  return (
-    <View
-      pointerEvents="box-none"
-      style={{ position: 'absolute', top: insets.top + 8, left: 0, right: 0, zIndex: 80 }}>
-      <StreakBanner days={Math.max(1, state.visitStreak || 1)} onDismiss={dismissStreakCelebrate} />
-    </View>
-  );
+  return <StreakFireModal days={Math.max(1, state.visitStreak || 1)} onDismiss={dismissStreakCelebrate} />;
 }
 
 function ScreenTimeHost() {

@@ -51,7 +51,7 @@ export function uid(prefix = 'id'): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export const COACH_PROMPT_REV = 2;
+export const COACH_PROMPT_REV = 3;
 
 export function blankCoachChat(): CoachChatThread {
   const now = new Date().toISOString();
@@ -122,7 +122,8 @@ export function emptyState(): EngineState {
     streakCelebrate: false,
     screenTime: {
       phrase: 'Я осознанно управляю своим временем и держу фокус на главных целях',
-      repeats: 48,
+      repeats: 24,
+      repeatsRev: 1,
       selection: null,
       weeklyLimitMin: 120,
       dailyCapMin: 30,

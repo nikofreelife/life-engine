@@ -61,12 +61,11 @@ export function ScreenTimeLock() {
       <KeyboardAvoidingView
         style={[styles.root, { paddingTop: insets.top + 18, paddingBottom: Math.max(insets.bottom, 18) }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Text style={styles.kicker}>LOCK SCREEN · FAMILY CONTROLS</Text>
+        <Text style={styles.kicker}>ЭКРАННОЕ ВРЕМЯ</Text>
         <Text style={styles.emoji}>📱</Text>
-        <Text style={styles.title}>Системный щит активен</Text>
+        <Text style={styles.title}>Лимит исчерпан</Text>
         <Text style={styles.lead}>
-          iOS заблокировал выбранные приложения через ManagedSettings. Единственный обход — ввести фразу ровно {total}{' '}
-          раз. После 100% щит снимается до 00:00.
+          iOS закрыл выбранные приложения. Чтобы снять щит до полуночи, введи фразу {total} раз.
         </Text>
         <View style={styles.quote}>
           <Text style={styles.quoteText}>{state.screenTime.phrase}</Text>

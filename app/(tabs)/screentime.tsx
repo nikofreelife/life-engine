@@ -7,8 +7,8 @@ export default function ScreenTimeScreen() {
     <ScreenScroll>
       <ScreenHeader
         kicker="Экранное время"
-        title="Системный блокировщик"
-        lead="Нативный FamilyActivityPicker, DeviceActivity и щит ManagedSettings. Без ручных сессий и текстовых пресетов."
+        title="Экранное время"
+        lead="FamilyActivityPicker, DeviceActivity и щит ManagedSettings. Приложения с айфона, не текстовый список."
         accent={colors.violet}
       />
       <ScreenTimeBoard />

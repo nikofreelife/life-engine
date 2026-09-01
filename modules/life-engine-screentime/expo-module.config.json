@@ -1,7 +1,7 @@
 {
   "platforms": ["apple", "android", "web"],
   "apple": {
-    "modules": ["LifeEngineScreenTimeModule"]
+    "modules": ["ScreenTimeModule"]
   },
   "android": {
     "modules": ["expo.modules.lifeenginescreentime.LifeEngineScreenTimeModule"]

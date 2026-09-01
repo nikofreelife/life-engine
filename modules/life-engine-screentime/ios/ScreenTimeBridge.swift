@@ -7,108 +7,9 @@ import ManagedSettings
 import SwiftUI
 import UIKit
 
-public class LifeEngineScreenTimeModule: Module {
-  public func definition() -> ModuleDefinition {
-    Name("LifeEngineScreenTime")
-
-    Events("onPendingUnlock", "onThresholdReached")
-
-    OnCreate {
-      ScreenTimeBridge.shared.module = self
-      ScreenTimeBridge.shared.startObservers()
-    }
-
-    OnDestroy {
-      ScreenTimeBridge.shared.stopObservers()
-      ScreenTimeBridge.shared.module = nil
-    }
-
-    Function("isNativeAvailable") { () -> Bool in
-      true
-    }
-
-    AsyncFunction("authorizationStatus") { () -> String in
-      Self.statusString(AuthorizationCenter.shared.authorizationStatus)
-    }
-
-    AsyncFunction("requestAuthorization") { () -> String in
-      do {
-        try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
-        return Self.statusString(AuthorizationCenter.shared.authorizationStatus)
-      } catch {
-        throw Exception(name: "ScreenTimeAuth", description: error.localizedDescription)
-      }
-    }
-
-    AsyncFunction("presentPicker") { (initial: String?) -> [String: Any] in
-      let seed: FamilyActivitySelection = {
-        if let initial, let data = Data(base64Encoded: initial),
-           let decoded = try? PropertyListDecoder().decode(FamilyActivitySelection.self, from: data) {
-          return decoded
-        }
-        return ScreenTimeStore.loadSelection() ?? FamilyActivitySelection()
-      }()
-      let selection = try await PickerPresenter.present(seed: seed)
-      ScreenTimeStore.saveSelection(selection)
-      return Self.pack(selection)
-    }
-
-    AsyncFunction("applyPolicy") { (policy: [String: Any]) in
-      try ScreenTimeBridge.shared.applyPolicy(policy)
-    }
-
-    AsyncFunction("clearPolicy") {
-      ScreenTimeBridge.shared.stopAll()
-      ScreenTimeStore.clearShield()
-      ScreenTimeStore.defaults.removeObject(forKey: ScreenTimeStore.selectionKey)
-    }
-
-    AsyncFunction("unlockUntilMidnight") { () -> String in
-      let until = ScreenTimeStore.unlockUntilMidnight()
-      try? ScreenTimeBridge.shared.scheduleBypassRelock(until: until)
-      let formatter = ISO8601DateFormatter()
-      formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-      return formatter.string(from: until)
-    }
-
-    AsyncFunction("consumePendingUnlock") { () -> Bool in
-      ScreenTimeStore.consumePendingUnlock()
-    }
-
-    AsyncFunction("isShielded") { () -> Bool in
-      ScreenTimeStore.defaults.bool(forKey: ScreenTimeStore.shieldedKey) && !ScreenTimeStore.isBypassed()
-    }
-
-    View(LEUsageReportView.self) {
-      Prop("selectionData") { (view: LEUsageReportView, value: String) in
-        view.selectionData = value
-      }
-    }
-  }
-
-  static func statusString(_ status: AuthorizationStatus) -> String {
-    switch status {
-    case .approved: return "approved"
-    case .denied: return "denied"
-    case .notDetermined: return "notDetermined"
-    @unknown default: return "notDetermined"
-    }
-  }
-
-  static func pack(_ selection: FamilyActivitySelection) -> [String: Any] {
-    let data = (try? PropertyListEncoder().encode(selection))?.base64EncodedString() ?? ""
-    return [
-      "selectionData": data,
-      "applicationCount": selection.applicationTokens.count,
-      "categoryCount": selection.categoryTokens.count,
-      "webCount": selection.webDomainTokens.count,
-    ]
-  }
-}
-
 final class ScreenTimeBridge {
   static let shared = ScreenTimeBridge()
-  weak var module: LifeEngineScreenTimeModule?
+  weak var module: ScreenTimeModule?
   private var pendingObserver: UnsafeMutableRawPointer?
 
   func startObservers() {
@@ -185,13 +86,16 @@ final class ScreenTimeBridge {
 
     if ScreenTimeStore.isBypassed() {
       ScreenTimeStore.clearShield()
-    } else if daily == 0 || weekly == 0 {
+    } else if daily == 0 || weekly == 0 || ScreenTimeStore.weeklyHit {
       ScreenTimeStore.applyShield()
     } else {
       ScreenTimeStore.clearShield()
     }
 
     try startMonitors(weekly: weekly, daily: daily, grid: grid, days: days)
+    if let bypass, bypass > Date() {
+      try scheduleBypassRelock(until: bypass)
+    }
   }
 
   func startMonitors(weekly: Int, daily: Int, grid: Bool, days: [Int]) throws {
@@ -336,21 +240,49 @@ struct PickerSheet: View {
 
 final class LEUsageReportView: ExpoView {
   private let host = UIHostingController(rootView: UsageReportHost(selectionData: nil))
+  private var attached = false
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
     clipsToBounds = true
     host.view.backgroundColor = .clear
-    addSubview(host.view)
   }
 
   var selectionData: String = "" {
     didSet { host.rootView = UsageReportHost(selectionData: selectionData.isEmpty ? nil : selectionData) }
   }
 
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    attachHostIfNeeded()
+  }
+
   override func layoutSubviews() {
     super.layoutSubviews()
+    attachHostIfNeeded()
     host.view.frame = bounds
+  }
+
+  private func attachHostIfNeeded() {
+    guard !attached, window != nil else { return }
+    let parent = nearestViewController()
+    if let parent {
+      parent.addChild(host)
+    }
+    addSubview(host.view)
+    if let parent {
+      host.didMove(toParent: parent)
+    }
+    attached = true
+  }
+
+  private func nearestViewController() -> UIViewController? {
+    var responder: UIResponder? = self
+    while let next = responder?.next {
+      if let controller = next as? UIViewController { return controller }
+      responder = next
+    }
+    return nil
   }
 }
 

@@ -4,7 +4,7 @@ module.exports = {
   name: 'LEActivityReport',
   bundleIdentifier: '.ActivityReport',
   deploymentTarget: '16.4',
-  frameworks: ['DeviceActivity', 'SwiftUI', 'FamilyControls'],
+  frameworks: ['DeviceActivity', 'SwiftUI', 'FamilyControls', 'ManagedSettings'],
   entitlements: {
     'com.apple.developer.family-controls': true,
     'com.apple.security.application-groups': ['group.com.lifeengine.app'],

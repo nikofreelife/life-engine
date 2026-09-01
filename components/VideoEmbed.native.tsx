@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
+import { WatchYoutubeButton } from './WatchYoutubeButton';
 import { openYoutubeWatch, playerHtml, type VideoEmbedProps } from '../src/player';
-import { colors } from '../src/theme';
 
 function keepInsideApp(url: string, isTopFrame?: boolean) {
   if (/^(intent:|market:|youtube:|vnd\.youtube)/i.test(url)) return false;
@@ -13,10 +13,10 @@ function keepInsideApp(url: string, isTopFrame?: boolean) {
 
 export function VideoEmbed({ source, cinema, onCinemaChange, onEnded }: VideoEmbedProps) {
   const webRef = useRef<WebView>(null);
-  const [blocked, setBlocked] = useState(false);
+  const opened = useRef(false);
 
   useEffect(() => {
-    setBlocked(false);
+    opened.current = false;
   }, [source]);
 
   useEffect(() => {
@@ -60,18 +60,19 @@ export function VideoEmbed({ source, cinema, onCinemaChange, onEnded }: VideoEmb
             if (msg.type === 'ended') onEnded?.();
             if (msg.type === 'cinema') onCinemaChange?.(true);
             if (msg.type === 'chrome') onCinemaChange?.(false);
-            if (msg.type === 'error') setBlocked(true);
+            if (msg.type === 'error' && source.type === 'youtube' && !opened.current) {
+              opened.current = true;
+              void openYoutubeWatch(source.id);
+            }
             if (msg.type === 'openyt' && source.type === 'youtube') void openYoutubeWatch(source.id);
           } catch {
             /* ignore */
           }
         }}
       />
-      {blocked && source.type === 'youtube' ? (
-        <View style={styles.fallback} pointerEvents="box-none">
-          <Pressable onPress={() => void openYoutubeWatch(source.id)} style={styles.openYt}>
-            <Text style={styles.openYtText}>Смотреть в YouTube / Открыть ссылку</Text>
-          </Pressable>
+      {source.type === 'youtube' ? (
+        <View style={[styles.bar, cinema && styles.barCinema]}>
+          <WatchYoutubeButton id={source.id} />
         </View>
       ) : null}
     </View>
@@ -81,17 +82,11 @@ export function VideoEmbed({ source, cinema, onCinemaChange, onEnded }: VideoEmb
 const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: '#000' },
   web: { flex: 1, backgroundColor: '#000' },
-  fallback: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 28,
+  bar: { backgroundColor: '#000' },
+  barCinema: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 16,
   },
-  openYt: {
-    backgroundColor: colors.crimson,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  openYtText: { color: colors.white, fontWeight: '800' },
 });

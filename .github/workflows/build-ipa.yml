@@ -187,12 +187,13 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.8-ipa
-          name: Life Engine v1.0.8 IPA
+          tag_name: v1.0.9-ipa
+          name: Life Engine v1.0.9 IPA
           body: |
             Unsigned universal IPA (iPhone + iPad) for Sideloadly / AltStore.
             Real arm64 Mach-O from Xcode 26, with AppIcon on the home screen.
-            New Screen Time tab: FamilyActivityPicker + DeviceActivity + ManagedSettings.
-            OS-level app blocking needs Apple Family Controls on a paid team; Sideloadly may strip that entitlement.
+            Screen Time: native FamilyActivityPicker, DeviceActivity minutes, ManagedSettings shield.
+            Unlock after limit: type the phrase 24 times.
+            OS-level blocking needs Apple Family Controls on a paid team; Sideloadly may strip that entitlement.
           files: LifeEngine.ipa
           fail_on_unmatched_files: true

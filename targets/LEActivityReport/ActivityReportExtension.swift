@@ -16,8 +16,10 @@ extension DeviceActivityReport.Context {
 }
 
 struct TotalActivityConfiguration {
-  var daily: String
-  var weekly: String
+  var dailyMinutes: Int
+  var weeklyMinutes: Int
+  var dailyCap: Int
+  var weeklyCap: Int
 }
 
 struct TotalActivityReport: DeviceActivityReportScene {
@@ -30,7 +32,8 @@ struct TotalActivityReport: DeviceActivityReportScene {
     let calendar = Calendar.current
     let now = Date()
     let startOfDay = calendar.startOfDay(for: now)
-    let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) ?? startOfDay
+    let startOfWeek = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now))
+      ?? startOfDay
 
     var daily: TimeInterval = 0
     var weekly: TimeInterval = 0
@@ -43,15 +46,12 @@ struct TotalActivityReport: DeviceActivityReportScene {
       }
     }
 
-    return TotalActivityConfiguration(daily: format(daily), weekly: format(weekly))
-  }
-
-  private func format(_ interval: TimeInterval) -> String {
-    let total = Int(interval.rounded())
-    let hours = total / 3600
-    let minutes = (total % 3600) / 60
-    if hours > 0 { return "\(hours) ч \(minutes) мин" }
-    return "\(minutes) мин"
+    return TotalActivityConfiguration(
+      dailyMinutes: Int((daily / 60).rounded()),
+      weeklyMinutes: Int((weekly / 60).rounded()),
+      dailyCap: ScreenTimeStore.todayCapMinutes(now: now),
+      weeklyCap: ScreenTimeStore.weeklyCapMinutes()
+    )
   }
 }
 
@@ -59,24 +59,63 @@ struct TotalActivityView: View {
   var configuration: TotalActivityConfiguration
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Text("НАСТОЯЩЕЕ ВРЕМЯ")
+    VStack(alignment: .leading, spacing: 14) {
+      Text("DEVICE ACTIVITY")
         .font(.caption.weight(.bold))
         .foregroundStyle(Color(red: 0.55, green: 0.36, blue: 0.96))
-      HStack(spacing: 16) {
-        VStack(alignment: .leading, spacing: 2) {
-          Text("Сегодня").font(.caption).foregroundStyle(.secondary)
-          Text(configuration.daily).font(.title3.weight(.bold)).foregroundStyle(.white)
-        }
-        VStack(alignment: .leading, spacing: 2) {
-          Text("Неделя").font(.caption).foregroundStyle(.secondary)
-          Text(configuration.weekly).font(.title3.weight(.bold)).foregroundStyle(.white)
-        }
-        Spacer()
-      }
+      UsageBar(
+        title: "Сегодня",
+        used: configuration.dailyMinutes,
+        cap: configuration.dailyCap
+      )
+      UsageBar(
+        title: "Неделя",
+        used: configuration.weeklyMinutes,
+        cap: configuration.weeklyCap
+      )
     }
     .padding(14)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color(red: 0.08, green: 0.09, blue: 0.12))
+    .background(Color(red: 0.05, green: 0.05, blue: 0.07))
+  }
+}
+
+struct UsageBar: View {
+  var title: String
+  var used: Int
+  var cap: Int
+
+  private var ratio: CGFloat {
+    guard cap > 0 else { return used > 0 ? 1 : 0 }
+    return min(1, CGFloat(used) / CGFloat(cap))
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+        Spacer()
+        Text("\(format(used)) / \(cap > 0 ? format(cap) : "без лимита")")
+          .font(.caption.weight(.bold))
+          .foregroundStyle(.white)
+      }
+      GeometryReader { geo in
+        ZStack(alignment: .leading) {
+          Capsule().fill(Color.white.opacity(0.08))
+          Capsule()
+            .fill(ratio >= 1 ? Color(red: 0.94, green: 0.27, blue: 0.27) : Color(red: 0.55, green: 0.36, blue: 0.96))
+            .frame(width: max(8, geo.size.width * ratio))
+        }
+      }
+      .frame(height: 10)
+    }
+  }
+
+  private func format(_ minutes: Int) -> String {
+    let hours = minutes / 60
+    let rest = minutes % 60
+    if hours > 0 && rest > 0 { return "\(hours) ч \(rest) мин" }
+    if hours > 0 { return "\(hours) ч" }
+    return "\(rest) мин"
   }
 }

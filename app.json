@@ -11,10 +11,12 @@
       "supportsTablet": true,
       "requireFullScreen": false,
       "bundleIdentifier": "com.lifeengine.app",
-      "buildNumber": "8",
+      "buildNumber": "9",
       "entitlements": {
         "com.apple.developer.family-controls": true,
-        "com.apple.security.application-groups": ["group.com.lifeengine.app"]
+        "com.apple.security.application-groups": [
+          "group.com.lifeengine.app"
+        ]
       },
       "icon": {
         "light": "./assets/images/icon.png",
@@ -26,7 +28,10 @@
         "CFBundleIconName": "AppIcon",
         "ITSAppUsesNonExemptEncryption": false,
         "NSFamilyControlsUsageDescription": "Life Engine использует Экранное время Apple, чтобы ты выбирал установленные приложения и блокировал их на уровне системы, когда лимит исчерпан.",
-        "UIDeviceFamily": [1, 2],
+        "UIDeviceFamily": [
+          1,
+          2
+        ],
         "UIRequiresFullScreen": false,
         "UISupportedInterfaceOrientations": [
           "UIInterfaceOrientationPortrait",
@@ -69,7 +74,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#0B0D12"
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true

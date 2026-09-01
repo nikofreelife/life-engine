@@ -17,7 +17,7 @@ type Props = {
 
 export function EngineHeader({ compact }: Props) {
   const router = useRouter();
-  const { progress, state, dismissStreakWarning } = useEngine();
+  const { progress, state, dismissStreakWarning, openStreakPopup } = useEngine();
   const { user } = useAuth();
   const { isTablet } = useEngineLayout();
   const progressLabel = `${progress.done}/${progress.total}`;
@@ -83,6 +83,7 @@ export function EngineHeader({ compact }: Props) {
           compact={compact}
           onPress={() => {
             if (state.streakWarning) dismissStreakWarning();
+            openStreakPopup();
           }}
         />
         <View style={styles.badge}>

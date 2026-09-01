@@ -21,8 +21,8 @@ import Animated, {
 import { CoachDrawer } from './CoachDrawer';
 import { NativeSheet } from './NativeSheet';
 import { PressScale } from './PressScale';
-import { useAuth, displayName } from '../src/auth';
-import { COACH_PRESETS, coachReply } from '../src/coach';
+import { useAuth } from '../src/auth';
+import { COACH_PRESETS, coachAddress, coachReply } from '../src/coach';
 import { activeCoachChat } from '../src/lib';
 import { useEngineLayout } from '../src/layout';
 import { useEngine } from '../src/store';
@@ -69,7 +69,7 @@ export function CoachChat() {
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const scroll = useRef<ScrollView>(null);
-  const name = displayName(user);
+  const name = coachAddress(user);
   const chat = activeCoachChat(state);
   const messages = chat.messages;
   const split = isTablet || sidebar;

@@ -50,9 +50,10 @@ export function ScreenTimeBoard() {
 
   const bypassed = isBypassed(st.bypassUntil);
   const todayCap = effectiveDailyCapMin(st);
+  const ios = Platform.OS === 'ios' && isNativeAvailable;
 
   const pushPolicy = useCallback(async () => {
-    if (!st.selection?.selectionData || !isNativeAvailable) return;
+    if (!st.selection?.selectionData || !ios || auth !== 'approved') return;
     await applyPolicy({
       selectionData: st.selection.selectionData,
       weeklyLimitMin: st.weeklyLimitMin,
@@ -61,11 +62,12 @@ export function ScreenTimeBoard() {
       dayLimitsMin: st.dayLimitsMin,
       bypassUntil: st.bypassUntil,
     });
-  }, [st]);
+  }, [st, ios, auth]);
 
   useEffect(() => {
+    if (!ios) return;
     void authorizationStatus().then(setAuth);
-  }, []);
+  }, [ios]);
 
   useEffect(() => {
     const sync = async () => {
@@ -85,19 +87,19 @@ export function ScreenTimeBoard() {
 
   const addApps = async () => {
     setError('');
+    if (!ios) {
+      setError('FamilyActivityPicker работает только на iPhone / iPad в development build.');
+      return;
+    }
     setBusy(true);
     try {
-      if (!isNativeAvailable) {
-        setError('Системный FamilyActivityPicker работает только на iPhone / iPad с development build.');
-        return;
-      }
       let status = auth;
       if (status !== 'approved') {
         status = await requestAuthorization();
         setAuth(status);
       }
       if (status !== 'approved') {
-        setError('Нужен доступ к Экранному времени. В Настройках iOS: Экранное время → поделиться данными.');
+        setError('Нужен доступ к Экранному времени. Настройки → Экранное время → поделиться данными с Life Engine.');
         return;
       }
       const picked = await presentPicker(st.selection?.selectionData);
@@ -108,7 +110,7 @@ export function ScreenTimeBoard() {
       }
       setScreenSelection(picked);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Не удалось открыть системный селектор.');
+      setError(err instanceof Error ? err.message : 'Не удалось открыть FamilyActivityPicker.');
     } finally {
       setBusy(false);
     }
@@ -124,25 +126,29 @@ export function ScreenTimeBoard() {
 
   return (
     <View style={styles.wrap}>
-      <LinearGradient colors={['#1A1430', '#12101C', '#0D0F16']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-        <Text style={styles.heroKicker}>APPLE SCREEN TIME</Text>
-        <Text style={styles.heroTitle}>Настоящий системный щит</Text>
+      <LinearGradient colors={['#1A1430', '#12101C', '#0D0E12']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+        <Text style={styles.heroKicker}>iOS SCREEN TIME</Text>
+        <Text style={styles.heroTitle}>Системный щит Apple</Text>
         <Text style={styles.heroLead}>
-          Выбор приложений идёт через FamilyActivityPicker. Лимиты считает DeviceActivity. Блокировка — ManagedSettings
-          на уровне iOS, не «сессия чести».
+          Приложения выбираются через FamilyActivityPicker. Минуты считает DeviceActivity. Блокировка — ManagedSettings
+          на уровне iOS.
         </Text>
         <View style={styles.statusRow}>
-          <StatusChip label={Platform.OS === 'ios' && isNativeAvailable ? 'iOS native' : 'Web / нет щита'} on={isNativeAvailable} />
+          <StatusChip label={ios ? 'iOS native' : 'Нужен iPhone'} on={ios} />
           <StatusChip label={auth === 'approved' ? 'Доступ выдан' : 'Нет авторизации'} on={auth === 'approved'} />
-          <StatusChip label={st.nativeLocked && !bypassed ? 'Щит ON' : bypassed ? 'Обход до 00:00' : 'Щит OFF'} on={st.nativeLocked && !bypassed} danger />
+          <StatusChip
+            label={st.nativeLocked && !bypassed ? 'Щит ON' : bypassed ? 'Обход до 00:00' : 'Щит OFF'}
+            on={st.nativeLocked && !bypassed}
+            danger
+          />
         </View>
       </LinearGradient>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Выбранные приложения</Text>
+        <Text style={styles.cardTitle}>Приложения с телефона</Text>
         <Text style={styles.meta}>{selectionLabel(st.selection)}</Text>
         <PressScale haptic="rigid" onPress={() => void addApps()} style={styles.primary}>
-          <Text style={styles.primaryText}>{busy ? 'Открываю iOS…' : '+ Добавить приложение'}</Text>
+          <Text style={styles.primaryText}>{busy ? 'Открываю iOS…' : 'Добавить приложение'}</Text>
         </PressScale>
         {st.selection ? (
           <PressScale
@@ -156,28 +162,52 @@ export function ScreenTimeBoard() {
           </PressScale>
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {!isNativeAvailable ? (
+        {!ios ? (
           <Text style={styles.hint}>
-            FamilyActivityPicker и щит ManagedSettings работают только в iOS development build (не Expo Go и не веб).
-            Нужны Family Controls и App Group `group.com.lifeengine.app`.
+            FamilyActivityPicker, DeviceActivity и ManagedSettings есть только в iOS development build. Expo Go и веб их
+            не открывают.
           </Text>
         ) : null}
-        {isNativeAvailable ? <UsageReport selectionData={st.selection?.selectionData} /> : null}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>День и неделя</Text>
+        <Text style={styles.hint}>Цифры и полоски рисует DeviceActivity по токенам выбранных приложений.</Text>
+        {ios && auth === 'approved' && st.selection?.selectionData ? (
+          <UsageReport selectionData={st.selection.selectionData} />
+        ) : (
+          <Text style={styles.meta}>Сначала выбери приложения на iPhone — появится отчёт Apple.</Text>
+        )}
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Недельный бюджет и дневная отсечка</Text>
         <Text style={styles.fieldLabel}>Недельный лимит, минут</Text>
-        <TextInput value={weekly} onChangeText={(t) => setWeekly(t.replace(/[^\d]/g, ''))} onBlur={saveLimits} keyboardType="number-pad" style={styles.input} />
+        <TextInput
+          value={weekly}
+          onChangeText={(t) => setWeekly(t.replace(/[^\d]/g, ''))}
+          onBlur={saveLimits}
+          keyboardType="number-pad"
+          style={styles.input}
+        />
         <Text style={styles.hint}>{formatMinutes(Number(weekly) || 0)} на 7 дней</Text>
         <Text style={styles.fieldLabel}>Дневная отсечка, минут</Text>
-        <TextInput value={daily} onChangeText={(t) => setDaily(t.replace(/[^\d]/g, ''))} onBlur={saveLimits} keyboardType="number-pad" style={styles.input} />
-        <Text style={styles.hint}>Сегодня {formatMinutes(todayCap)} · 0 = полная блокировка</Text>
+        <TextInput
+          value={daily}
+          onChangeText={(t) => setDaily(t.replace(/[^\d]/g, ''))}
+          onBlur={saveLimits}
+          keyboardType="number-pad"
+          style={styles.input}
+        />
+        <Text style={styles.hint}>Сегодня {formatMinutes(todayCap)} · 0 = сразу щит</Text>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Сетка по дням недели</Text>
-        <PressScale haptic="light" onPress={() => patchScreenLimits({ useDayGrid: !st.useDayGrid })} style={[styles.toggle, st.useDayGrid && styles.toggleOn]}>
+        <PressScale
+          haptic="light"
+          onPress={() => patchScreenLimits({ useDayGrid: !st.useDayGrid })}
+          style={[styles.toggle, st.useDayGrid && styles.toggleOn]}>
           <Text style={[styles.toggleText, st.useDayGrid && styles.toggleTextOn]}>
             {st.useDayGrid ? 'Сетка включена · каждый день свой лимит' : 'Сетка выключена · одна дневная отсечка'}
           </Text>
@@ -205,9 +235,15 @@ export function ScreenTimeBoard() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Дисциплинарная фраза</Text>
-        <TextInput value={phraseDraft} onChangeText={setPhraseDraft} onBlur={() => setScreenPhrase(phraseDraft)} multiline style={[styles.input, styles.phrase]} />
-        <Text style={styles.fieldLabel}>Повторений для аварийного обхода</Text>
+        <Text style={styles.cardTitle}>Фраза для обхода</Text>
+        <TextInput
+          value={phraseDraft}
+          onChangeText={setPhraseDraft}
+          onBlur={() => setScreenPhrase(phraseDraft)}
+          multiline
+          style={[styles.input, styles.phrase]}
+        />
+        <Text style={styles.fieldLabel}>Повторений</Text>
         <View style={styles.chipRow}>
           {PHRASE_CHIPS.map((n) => {
             const on = st.repeats === n && !customRepeats;
@@ -224,32 +260,10 @@ export function ScreenTimeBoard() {
               </PressScale>
             );
           })}
-          <PressScale
-            haptic="light"
-            onPress={() => {
-              if (!customRepeats) setCustomRepeats(String(st.repeats));
-            }}
-            style={[styles.chip, Boolean(customRepeats) && styles.chipOn]}>
-            <Text style={[styles.chipText, Boolean(customRepeats) && styles.chipTextOn]}>Кастом</Text>
-          </PressScale>
         </View>
-        {customRepeats !== '' ? (
-          <TextInput
-            value={customRepeats}
-            onChangeText={(text) => {
-              const digits = text.replace(/[^\d]/g, '');
-              setCustomRepeats(digits);
-              if (digits) setScreenRepeats(Number(digits));
-            }}
-            keyboardType="number-pad"
-            placeholder="1–500"
-            placeholderTextColor={colors.faint}
-            style={styles.input}
-          />
-        ) : null}
         {st.nativeLocked && !bypassed ? (
           <PressScale haptic="rigid" onPress={openScreenUnlock} style={styles.danger}>
-            <Text style={styles.dangerText}>Фразная разблокировка</Text>
+            <Text style={styles.dangerText}>Ввести фразу</Text>
           </PressScale>
         ) : null}
       </View>
@@ -282,7 +296,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     borderColor: 'rgba(139,92,246,0.35)',
-    backgroundColor: '#12101C',
+    backgroundColor: '#0D0E12',
     padding: 16,
     gap: 8,
   },

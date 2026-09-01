@@ -23,6 +23,6 @@ export function UsageReport({ selectionData, style }: Props) {
 }
 
 const styles = StyleSheet.create({
-  native: { height: 112, borderRadius: 16, overflow: 'hidden' },
+  native: { height: 220, borderRadius: 16, overflow: 'hidden', backgroundColor: '#0D0E12' },
   web: { height: 0 },
 });

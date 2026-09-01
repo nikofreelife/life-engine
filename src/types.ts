@@ -201,6 +201,7 @@ export type ScreenTimeState = {
   bypassLog: ScreenTimeBypass[];
   unlock: ScreenTimeUnlock | null;
   nativeLocked: boolean;
+  repeatsRev?: number;
 };
 
 export type EngineState = {

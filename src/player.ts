@@ -32,8 +32,24 @@ export function youtubeWatchUrl(id: string) {
   return safe ? `https://www.youtube.com/watch?v=${safe}` : 'https://www.youtube.com';
 }
 
-export function youtubeEmbedQuery(origin = '*') {
+/** IFrame API rejects origin=* — web uses the real page origin, native uses youtube.com. */
+export function youtubeOrigin() {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+  return 'https://www.youtube.com';
+}
+
+export function youtubeEmbedQuery(origin = youtubeOrigin()) {
   return `enablejsapi=1&origin=${encodeURIComponent(origin)}&rel=0&modestbranding=1&playsinline=1`;
+}
+
+export function youtubePlayerVars(origin = youtubeOrigin()) {
+  return {
+    ...YOUTUBE_PLAYER_VARS,
+    origin,
+    widget_referrer: origin,
+  };
 }
 
 export async function openYoutubeWatch(id: string) {
@@ -166,7 +182,7 @@ export function playerHtml(source: Extract<PlayerSource, { type: 'youtube' | 'vi
   }
   function fail(text){
     msg.style.display='flex';
-    msg.innerHTML='<div>'+text+'</div><button type="button" id="ytOpen">Смотреть в YouTube / Открыть ссылку</button>';
+    msg.innerHTML='<div>'+text+'</div><button type="button" id="ytOpen">Смотреть в YouTube ↗</button>';
     var btn=document.getElementById('ytOpen');
     if(btn) btn.onclick=function(){ notify('openyt'); };
     notify('error');
@@ -231,7 +247,7 @@ export function playerHtml(source: Extract<PlayerSource, { type: 'youtube' | 'vi
         playerVars:{
           autoplay:1, mute:1, controls:0, disablekb:1, fs:0, modestbranding:1,
           playsinline:1, rel:0, iv_load_policy:3, cc_load_policy:0,
-          hl:'ru', cc_lang_pref:'ru', enablejsapi:1, origin:'*', widget_referrer:'*'
+          hl:'ru', cc_lang_pref:'ru', enablejsapi:1, origin:'https://www.youtube.com', widget_referrer:'https://www.youtube.com'
         },
         events:{
           onReady:function(){

@@ -97,6 +97,7 @@ type EngineContextValue = {
   deleteCoachChat: (id: string) => void;
   dismissStreakWarning: () => void;
   dismissStreakCelebrate: () => void;
+  openStreakPopup: () => void;
   setCalendarDay: (day: string, value: CalendarDay) => void;
   addCustomSection: (tab: TabKey, title: string, description: string, accent: CatalogSection['accent']) => void;
   removeCustomSection: (id: string) => void;
@@ -594,6 +595,9 @@ export function EngineProvider({ children }: { children: ReactNode }) {
       dismissStreakCelebrate: () => {
         mutate((prev) => ({ ...prev, streakCelebrate: false }));
       },
+      openStreakPopup: () => {
+        mutate((prev) => ({ ...prev, streakCelebrate: true }));
+      },
       setCalendarDay: (day, value) => {
         mutate((prev) => ({
           ...prev,
@@ -755,7 +759,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         mutate((prev) => ({ ...prev, screenTime: { ...prev.screenTime, nativeLocked: locked } }));
       },
       setScreenBypassUntil: (iso) => {
-        mutate((prev) => ({ ...prev, screenTime: { ...prev.screenTime, bypassUntil: iso, nativeLocked: iso ? false : prev.screenTime.nativeLocked } }));
+        mutate((prev) => ({
+          ...prev,
+          screenTime: { ...prev.screenTime, bypassUntil: iso, nativeLocked: iso ? false : prev.screenTime.nativeLocked },
+        }));
       },
       progress: {
         done: progressDone,

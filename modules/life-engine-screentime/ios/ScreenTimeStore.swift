@@ -12,6 +12,7 @@ enum ScreenTimeStore {
   static let bypassKey = "le.st.bypassUntil"
   static let pendingUnlockKey = "le.st.pendingUnlock"
   static let shieldedKey = "le.st.shielded"
+  static let weeklyHitKey = "le.st.weeklyHit"
   static let darwinPending = "com.lifeengine.app.screentime.pendingUnlock" as CFString
   static let darwinThreshold = "com.lifeengine.app.screentime.threshold" as CFString
 
@@ -58,6 +59,11 @@ enum ScreenTimeStore {
 
   static func weeklyCapMinutes() -> Int {
     max(0, defaults.integer(forKey: weeklyKey))
+  }
+
+  static var weeklyHit: Bool {
+    get { defaults.bool(forKey: weeklyHitKey) }
+    set { defaults.set(newValue, forKey: weeklyHitKey) }
   }
 
   static func applyShield() {
@@ -117,5 +123,39 @@ enum ScreenTimeStore {
     defaults.set(false, forKey: pendingUnlockKey)
     clearShield()
     return until
+  }
+
+  static func expireBypass() {
+    defaults.removeObject(forKey: bypassKey)
+    applyShield()
+  }
+
+  static func applyIntervalStart(activityRaw: String) {
+    if activityRaw == "le.bypass" { return }
+    if activityRaw == "le.week" { weeklyHit = false }
+    if isBypassed() {
+      clearShield()
+      return
+    }
+    if todayCapMinutes() == 0 || weeklyCapMinutes() == 0 || weeklyHit {
+      applyShield()
+      return
+    }
+    clearShield()
+  }
+
+  static func applyThreshold(eventRaw: String, activityRaw: String) {
+    if activityRaw == "le.week" || eventRaw == "le.week.cap" {
+      weeklyHit = true
+    }
+    applyShield()
+    markPendingUnlock()
+    CFNotificationCenterPostNotification(
+      CFNotificationCenterGetDarwinNotifyCenter(),
+      CFNotificationName(darwinThreshold),
+      nil,
+      nil,
+      true
+    )
   }
 }
