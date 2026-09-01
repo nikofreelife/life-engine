@@ -109,7 +109,7 @@ public class LifeEngineScreenTimeModule: Module {
 final class ScreenTimeBridge {
   static let shared = ScreenTimeBridge()
   weak var module: LifeEngineScreenTimeModule?
-  private var pendingObserver: UnsafeRawPointer?
+  private var pendingObserver: UnsafeMutableRawPointer?
 
   func startObservers() {
     let center = CFNotificationCenterGetDarwinNotifyCenter()
