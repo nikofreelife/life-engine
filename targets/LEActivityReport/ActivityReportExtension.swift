@@ -2,7 +2,6 @@ import DeviceActivity
 import Foundation
 import SwiftUI
 
-@objc(ActivityReportExtension)
 @main
 struct ActivityReportExtension: DeviceActivityReportExtension {
   var body: some DeviceActivityReportScene {
