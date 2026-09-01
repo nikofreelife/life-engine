@@ -15,6 +15,6 @@ Pod::Spec.new do |s|
   s.source         = { git: '' }
   s.static_framework = true
   s.dependency 'ExpoModulesCore'
-  s.frameworks = 'FamilyControls', 'DeviceActivity', 'DeviceActivityUI', 'ManagedSettings', 'ManagedSettingsUI', 'SwiftUI'
+  s.frameworks = 'FamilyControls', 'DeviceActivity', 'ManagedSettings', 'ManagedSettingsUI', 'SwiftUI'
   s.source_files = '**/*.{h,m,mm,swift}'
 end
