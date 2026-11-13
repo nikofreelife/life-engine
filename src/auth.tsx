@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { ACCOUNTS_KEY, SESSION_KEY, hashPin, uid, userPassKey } from './lib';
+import { ACCOUNTS_KEY, SESSION_KEY, assertPassword, hashPin, uid, userPassKey } from './lib';
 import type { UserAccount } from './types';
 
 export function normalizeIdentity(value: string) {
@@ -230,10 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const account = registry.find((entry) => normalizeIdentity(entry.email) === normalized);
         if (!account) throw new Error('Аккаунт не найден');
         const stored = (await readPass(account.id)) || account.passHash || null;
-        if (stored) {
-          if (!password) throw new Error('Введи пароль');
-          if (hashPin(password) !== stored) throw new Error('Неверный пароль');
-        }
+        assertPassword(stored, password);
         await persist(registry, account);
       },
       signInAccount: async (id, password) => {
@@ -241,9 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const account = registry.find((entry) => entry.id === id);
         if (!account) throw new Error('Аккаунт не найден');
         const stored = (await readPass(account.id)) || account.passHash || null;
-        if (stored && password && hashPin(password) !== stored) {
-          throw new Error('Неверный пароль');
-        }
+        assertPassword(stored, password);
         await persist(registry, account);
       },
       updateAge: async (age) => {
@@ -262,7 +257,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut: async () => {
         await persist(accounts, null);
       },
-      hasPassword: async (id) => Boolean(await readPass(id)),
+      hasPassword: async (id) => {
+        if (await readPass(id)) return true;
+        const registry = await loadAccounts();
+        return Boolean(registry.find((entry) => entry.id === id)?.passHash);
+      },
     }),
     [accounts, persist, ready, user, patchAccount],
   );

@@ -16,7 +16,7 @@ import { useAuth } from '@/src/auth';
 import { colors, fonts, radius, type } from '@/src/theme';
 
 export default function AuthScreen() {
-  const { signIn, signUp, accounts, signInAccount } = useAuth();
+  const { signIn, signUp, accounts, signInAccount, hasPassword } = useAuth();
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [local, setLocal] = useState(false);
   const [email, setEmail] = useState('');
@@ -41,6 +41,27 @@ export default function AuthScreen() {
           local,
         });
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не получилось');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pickAccount = async (id: string, accountEmail: string, passHash?: string) => {
+    setError('');
+    setBusy(true);
+    try {
+      const locked = Boolean(passHash) || (await hasPassword(id));
+      if (locked) {
+        setMode('in');
+        setLocal(false);
+        setEmail(accountEmail);
+        setPassword('');
+        setError('Введи пароль для этого аккаунта');
+        return;
+      }
+      await signInAccount(id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не получилось');
     } finally {
@@ -128,7 +149,11 @@ export default function AuthScreen() {
             <View style={styles.locals}>
               <Text style={styles.localsKicker}>Аккаунты на этом устройстве</Text>
               {deviceAccounts.map((account) => (
-                <Pressable key={account.id} onPress={() => signInAccount(account.id)} style={styles.localCard}>
+                <Pressable
+                  key={account.id}
+                  onPress={() => pickAccount(account.id, account.email, account.passHash)}
+                  disabled={busy}
+                  style={styles.localCard}>
                   <Text style={styles.localName}>{account.name || account.email}</Text>
                   <Text style={styles.localMeta}>{account.email} · {account.age} лет{account.local ? ' · локальный' : ''}</Text>
                 </Pressable>

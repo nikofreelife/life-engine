@@ -85,6 +85,17 @@ export function hashPin(pin: string): string {
   return (h >>> 0).toString(16);
 }
 
+/** Fail closed when an account has a stored password hash. */
+export function assertPassword(stored: string | null | undefined, password?: string) {
+  if (!stored) return;
+  if (!password) {
+    throw new Error('Введи пароль');
+  }
+  if (hashPin(password) !== stored) {
+    throw new Error('Неверный пароль');
+  }
+}
+
 export function defaultItem(): ItemState {
   return { status: 'planned', notes: '', extraTags: [] };
 }
