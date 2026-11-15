@@ -1,6 +1,8 @@
 import { todayKey, uid } from './lib';
 import type { ScreenTimeBypass, ScreenTimeSelection, ScreenTimeState, ScreenTimeUnlock } from './types';
 
+export { shouldClearShieldOnPolicyPush } from './screentime-shield';
+
 export const DEFAULT_PHRASE =
   'Я осознанно управляю своим временем и держу фокус на главных целях';
 

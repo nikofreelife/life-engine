@@ -62,7 +62,16 @@ export function ScreenTimeBoard() {
       dayLimitsMin: st.dayLimitsMin,
       bypassUntil: st.bypassUntil,
     });
-  }, [st, ios, auth]);
+  }, [
+    st.selection?.selectionData,
+    st.weeklyLimitMin,
+    st.dailyCapMin,
+    st.useDayGrid,
+    st.dayLimitsMin,
+    st.bypassUntil,
+    ios,
+    auth,
+  ]);
 
   useEffect(() => {
     if (!ios) return;

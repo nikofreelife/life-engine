@@ -84,9 +84,16 @@ final class ScreenTimeBridge {
     }
     ScreenTimeStore.savePolicy(weekly: weekly, daily: daily, grid: grid, days: days, bypassUntil: bypass)
 
+    // DeviceActivity turns the shield ON at the daily/weekly threshold.
+    // JS re-pushes this policy on unrelated Screen Time state changes (unlock
+    // modal, nativeLocked flag, phrase edits). Clearing here made the lock a
+    // no-op: opening Life Engine after the cap lifted ManagedSettings before
+    // the phrase repeats. Keep an active shield unless a live bypassUntil
+    // (phrase completed) is in effect. clearPolicy() is the explicit off path.
+    let alreadyShielded = ScreenTimeStore.defaults.bool(forKey: ScreenTimeStore.shieldedKey)
     if ScreenTimeStore.isBypassed() {
       ScreenTimeStore.clearShield()
-    } else if daily == 0 || weekly == 0 || ScreenTimeStore.weeklyHit {
+    } else if daily == 0 || weekly == 0 || ScreenTimeStore.weeklyHit || alreadyShielded {
       ScreenTimeStore.applyShield()
     } else {
       ScreenTimeStore.clearShield()
