@@ -13,6 +13,7 @@ enum ScreenTimeStore {
   static let pendingUnlockKey = "le.st.pendingUnlock"
   static let shieldedKey = "le.st.shielded"
   static let weeklyHitKey = "le.st.weeklyHit"
+  static let monitorFingerprintKey = "le.st.monitorFp"
   static let darwinPending = "com.lifeengine.app.screentime.pendingUnlock" as CFString
   static let darwinThreshold = "com.lifeengine.app.screentime.threshold" as CFString
 
@@ -64,6 +65,38 @@ enum ScreenTimeStore {
   static var weeklyHit: Bool {
     get { defaults.bool(forKey: weeklyHitKey) }
     set { defaults.set(newValue, forKey: weeklyHitKey) }
+  }
+
+  /// Deterministic DeviceActivity config id. Must match `monitorFingerprint` in src/screentime-monitors.ts.
+  static func monitorFingerprint(weekly: Int, daily: Int, grid: Bool, days: [Int], selection: FamilyActivitySelection) -> String {
+    let sel = (try? PropertyListEncoder().encode(selection))?.base64EncodedString() ?? ""
+    let daysPart = days.map(String.init).joined(separator: ",")
+    return "\(weekly)|\(daily)|\(grid ? 1 : 0)|\(daysPart)|\(sel)"
+  }
+
+  static func storedMonitorFingerprint() -> String? {
+    defaults.string(forKey: monitorFingerprintKey)
+  }
+
+  static func saveMonitorFingerprint(_ value: String) {
+    defaults.set(value, forKey: monitorFingerprintKey)
+  }
+
+  static func clearMonitorFingerprint() {
+    defaults.removeObject(forKey: monitorFingerprintKey)
+  }
+
+  /// Keep in sync with `shouldRestartMonitors` in src/screentime-monitors.ts.
+  static func shouldRestartMonitors(
+    storedFingerprint: String?,
+    nextFingerprint: String,
+    dayMonitorsRunning: Bool,
+    weekMonitorRunning: Bool,
+    weeklyLimitMin: Int
+  ) -> Bool {
+    if !dayMonitorsRunning { return true }
+    if weeklyLimitMin > 0 && !weekMonitorRunning { return true }
+    return storedFingerprint != nextFingerprint
   }
 
   static func applyShield() {

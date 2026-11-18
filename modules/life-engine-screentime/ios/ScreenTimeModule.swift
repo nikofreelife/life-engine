@@ -54,6 +54,7 @@ public class ScreenTimeModule: Module {
       ScreenTimeBridge.shared.stopAll()
       ScreenTimeStore.clearShield()
       ScreenTimeStore.weeklyHit = false
+      ScreenTimeStore.clearMonitorFingerprint()
       ScreenTimeStore.defaults.removeObject(forKey: ScreenTimeStore.selectionKey)
       ScreenTimeStore.defaults.removeObject(forKey: ScreenTimeStore.bypassKey)
     }

@@ -99,9 +99,31 @@ final class ScreenTimeBridge {
   }
 
   func startMonitors(weekly: Int, daily: Int, grid: Bool, days: [Int]) throws {
-    let center = DeviceActivityCenter()
-    center.stopMonitoring()
     guard let selection = ScreenTimeStore.loadSelection() else { return }
+    let fingerprint = ScreenTimeStore.monitorFingerprint(
+      weekly: weekly,
+      daily: daily,
+      grid: grid,
+      days: days,
+      selection: selection
+    )
+    let center = DeviceActivityCenter()
+    let running = center.activities
+    let dayMonitorsRunning = (1...7).allSatisfy { running.contains(DeviceActivityName("le.day.\($0)")) }
+    let weekMonitorRunning = running.contains(DeviceActivityName("le.week"))
+    // stopMonitoring + startMonitoring resets DeviceActivity threshold totals.
+    // Opening the Screen Time tab re-pushes the same policy and would otherwise
+    // give another full daily/weekly budget.
+    if !ScreenTimeStore.shouldRestartMonitors(
+      storedFingerprint: ScreenTimeStore.storedMonitorFingerprint(),
+      nextFingerprint: fingerprint,
+      dayMonitorsRunning: dayMonitorsRunning,
+      weekMonitorRunning: weekMonitorRunning,
+      weeklyLimitMin: weekly
+    ) {
+      return
+    }
+    center.stopMonitoring()
 
     for weekday in 1...7 {
       let mondayIndex = (weekday + 5) % 7
@@ -141,6 +163,7 @@ final class ScreenTimeBridge {
       ]
       try center.startMonitoring(week, during: schedule, events: events)
     }
+    ScreenTimeStore.saveMonitorFingerprint(fingerprint)
   }
 
   func scheduleBypassRelock(until: Date) throws {
