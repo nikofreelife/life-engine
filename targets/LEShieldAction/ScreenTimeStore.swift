@@ -48,9 +48,28 @@ enum ScreenTimeStore {
     return until > now.timeIntervalSince1970
   }
 
+  /// UserDefaults stores Int arrays as NSNumber; `as? [Int]` is often nil.
+  static func loadDayLimits() -> [Int]? {
+    guard let raw = defaults.array(forKey: daysKey), raw.count == 7 else { return nil }
+    var days: [Int] = []
+    days.reserveCapacity(7)
+    for value in raw {
+      if let n = value as? Int {
+        days.append(max(0, n))
+      } else if let n = value as? Double {
+        days.append(max(0, Int(n)))
+      } else if let n = value as? NSNumber {
+        days.append(max(0, n.intValue))
+      } else {
+        return nil
+      }
+    }
+    return days
+  }
+
   static func todayCapMinutes(now: Date = Date()) -> Int {
     let grid = defaults.bool(forKey: gridKey)
-    if grid, let days = defaults.array(forKey: daysKey) as? [Int], days.count == 7 {
+    if grid, let days = loadDayLimits() {
       let mondayIndex = (Calendar.current.component(.weekday, from: now) + 5) % 7
       return max(0, days[mondayIndex])
     }

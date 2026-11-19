@@ -42,7 +42,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:ipa": "bash ./build_ipa.sh",
-    "export:web": "expo export --platform web --output-dir dist-web"
+    "export:web": "expo export --platform web --output-dir dist-web",
+    "test:screentime-shield": "node --experimental-strip-types scripts/test-screentime-shield.ts"
   },
   "private": true
 }

@@ -84,9 +84,13 @@ final class ScreenTimeBridge {
     }
     ScreenTimeStore.savePolicy(weekly: weekly, daily: daily, grid: grid, days: days, bypassUntil: bypass)
 
+    // Keep in sync with shouldApplyImmediateShield in src/screentime-shield.ts.
+    // Use today's grid cap, not the fallback daily field. A Saturday=0 grid with
+    // daily=30 must shield immediately; intervalDidStart will not fire again until midnight.
+    let todayCap = ScreenTimeStore.todayCapMinutes()
     if ScreenTimeStore.isBypassed() {
       ScreenTimeStore.clearShield()
-    } else if daily == 0 || weekly == 0 || ScreenTimeStore.weeklyHit {
+    } else if todayCap == 0 || weekly == 0 || ScreenTimeStore.weeklyHit {
       ScreenTimeStore.applyShield()
     } else {
       ScreenTimeStore.clearShield()
