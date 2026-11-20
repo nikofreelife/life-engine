@@ -231,6 +231,7 @@ function hydrateCoach(parsed: EngineState) {
 
 function hydrateState(parsed: EngineState, pinHash: string | null): EngineState {
   const coach = hydrateCoach(parsed);
+  const seedDefaultsCleared = Boolean(parsed.seedDefaultsCleared);
   return {
     ...emptyState(),
     ...parsed,
@@ -240,13 +241,14 @@ function hydrateState(parsed: EngineState, pinHash: string | null): EngineState 
     videoInsights: parsed.videoInsights ?? {},
     videoWatch: parsed.videoWatch ?? {},
     breathLogs: parsed.breathLogs ?? [],
-    habits: stripUnusedSeedHabits((parsed.habits ?? []).map(normalizeHabit)),
+    habits: stripUnusedSeedHabits((parsed.habits ?? []).map(normalizeHabit), seedDefaultsCleared),
     visitStreak: parsed.visitStreak ?? 0,
     lastLoginDate: parsed.lastLoginDate ?? '',
     lastLoginAt: parsed.lastLoginAt ?? '',
     streakWarning: Boolean(parsed.streakWarning),
     streakCelebrate: Boolean(parsed.streakCelebrate),
     screenTime: hydrateScreenTime(parsed.screenTime),
+    seedDefaultsCleared: true,
     secret: {
       ...emptyState().secret,
       ...parsed.secret,
@@ -260,7 +262,7 @@ function hydrateState(parsed: EngineState, pinHash: string | null): EngineState 
         thcMonthlyCost: parsed.secret?.thcMonthlyCost
           ?? ((parsed.secret?.thcDailyCost ?? 0) > 0 ? parsed.secret.thcDailyCost * 30.437 : 0),
         customTracks: parsed.secret?.customTracks ?? [],
-      }),
+      }, seedDefaultsCleared),
     },
   };
 }
@@ -304,7 +306,8 @@ export function EngineProvider({ children }: { children: ReactNode }) {
           setState(
             applyVisitStreak({
               ...base,
-              secret: { ...base.secret, pinHash, tracks: migrateTracks(base.secret) },
+              seedDefaultsCleared: true,
+              secret: { ...base.secret, pinHash, tracks: migrateTracks(base.secret, true) },
             }),
           );
         }

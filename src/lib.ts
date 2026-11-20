@@ -1,4 +1,12 @@
-import type { CoachChatThread, EngineState, Habit, HabitSlot, ItemState, Status } from './types';
+import type {
+  AbstinenceTrack,
+  CoachChatThread,
+  EngineState,
+  Habit,
+  HabitSlot,
+  ItemState,
+  Status,
+} from './types';
 
 export const STORAGE_KEY = 'life-engine-v1';
 export const ACCOUNTS_KEY = 'life-engine-accounts';
@@ -94,6 +102,7 @@ export function emptyState(): EngineState {
   return {
     items: {},
     habits: [],
+    seedDefaultsCleared: true,
     secret: {
       pinHash: null,
       thcStartISO: null,
@@ -139,12 +148,37 @@ export function emptyState(): EngineState {
 
 const SEED_HABIT_NAMES = new Set(['Холодный душ', 'Чтение 20 минут', 'Движение / тренировка']);
 
-export function stripUnusedSeedHabits(habits: Habit[]): Habit[] {
+export function stripUnusedSeedHabits(habits: Habit[], alreadyCleared = false): Habit[] {
+  if (alreadyCleared) return habits;
   if (!habits.length) return [];
   const onlySeeds = habits.every((habit) => SEED_HABIT_NAMES.has(habit.name));
   const unused = habits.every((habit) => !Object.keys(habit.completions ?? {}).length);
   if (onlySeeds && unused) return [];
   return habits;
+}
+
+const SEEDED_TRACK_KINDS = ['thc', 'nofap', 'nicotine', 'alcohol', 'sugar'] as const;
+
+function isBlankTrack(track: AbstinenceTrack) {
+  return !track.startISO && !(track.journal?.length) && !(track.monthlyCost > 0);
+}
+
+/** Auto-seeded unused templates from older builds — wipe so first visit is empty. */
+function isUnusedDefaultSeed(tracks: AbstinenceTrack[]) {
+  if (tracks.length !== 5) return false;
+  const kinds = new Set(tracks.map((track) => track.kind));
+  return (
+    SEEDED_TRACK_KINDS.every((kind) => kinds.has(kind)) &&
+    tracks.every((track) => track.kind !== 'custom' && isBlankTrack(track))
+  );
+}
+
+export function stripUnusedDefaultTracks(
+  tracks: AbstinenceTrack[],
+  alreadyCleared = false,
+): AbstinenceTrack[] {
+  if (alreadyCleared) return tracks;
+  return isUnusedDefaultSeed(tracks) ? [] : tracks;
 }
 
 export function applyVisitStreak(state: EngineState, now = new Date()): EngineState {

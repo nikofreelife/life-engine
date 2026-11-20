@@ -42,7 +42,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:ipa": "bash ./build_ipa.sh",
-    "export:web": "expo export --platform web --output-dir dist-web"
+    "export:web": "expo export --platform web --output-dir dist-web",
+    "test:seed-defaults": "node --experimental-strip-types --test src/seed-defaults.test.ts"
   },
   "private": true
 }

@@ -1,6 +1,6 @@
 import type { AbstinenceTrack, SecretState, TrackKind } from './types';
 import type { Accent } from './theme';
-import { uid } from './lib';
+import { stripUnusedDefaultTracks, uid } from './lib';
 
 export type RecoveryScale = {
   label: string;
@@ -98,22 +98,9 @@ export function makeTrack(
   };
 }
 
-const SEEDED_KINDS: TrackKind[] = ['thc', 'nofap', 'nicotine', 'alcohol', 'sugar'];
-
-function isBlankTrack(track: AbstinenceTrack) {
-  return !track.startISO && !(track.journal?.length) && !(track.monthlyCost > 0);
-}
-
-/** Auto-seeded unused templates from older builds — wipe so first visit is empty. */
-function isUnusedDefaultSeed(tracks: AbstinenceTrack[]) {
-  if (tracks.length !== 5) return false;
-  const kinds = new Set(tracks.map((track) => track.kind));
-  return SEEDED_KINDS.every((kind) => kinds.has(kind)) && tracks.every((track) => track.kind !== 'custom' && isBlankTrack(track));
-}
-
-export function migrateTracks(secret: SecretState): AbstinenceTrack[] {
+export function migrateTracks(secret: SecretState, seedDefaultsCleared = false): AbstinenceTrack[] {
   if (Array.isArray(secret.tracks)) {
-    return isUnusedDefaultSeed(secret.tracks) ? [] : secret.tracks;
+    return stripUnusedDefaultTracks(secret.tracks, seedDefaultsCleared);
   }
 
   const customs = (secret.customTracks ?? []).map((item) =>

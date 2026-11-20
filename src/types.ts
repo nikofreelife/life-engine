@@ -207,6 +207,12 @@ export type ScreenTimeState = {
 export type EngineState = {
   items: Record<string, ItemState>;
   habits: Habit[];
+  /**
+   * One-shot: unused catalog seeds were already stripped.
+   * Without this, hydrate would delete user-created habits/trackers that
+   * happen to match the old default names/kinds.
+   */
+  seedDefaultsCleared?: boolean;
   secret: SecretState;
   customSections: CatalogSection[];
   extraItems: Record<string, CatalogItem[]>;
