@@ -125,14 +125,8 @@ enum ScreenTimeStore {
     return until
   }
 
-  static func expireBypass() {
-    defaults.removeObject(forKey: bypassKey)
-    applyShield()
-  }
-
-  static func applyIntervalStart(activityRaw: String) {
-    if activityRaw == "le.bypass" { return }
-    if activityRaw == "le.week" { weeklyHit = false }
+  /// Match the live cap: shield only when today's/weekly budget is already exhausted.
+  static func syncShieldToCurrentPolicy() {
     if isBypassed() {
       clearShield()
       return
@@ -142,6 +136,21 @@ enum ScreenTimeStore {
       return
     }
     clearShield()
+  }
+
+  static func expireBypass() {
+    defaults.removeObject(forKey: bypassKey)
+    // Do not unconditionally re-shield. `le.bypass` intervalDidEnd can run after
+    // the next day's intervalDidStart (especially when iOS delivers missed
+    // callbacks on morning wake). Blind applyShield() then locks selected apps
+    // for a fresh day that still has unused allowance.
+    syncShieldToCurrentPolicy()
+  }
+
+  static func applyIntervalStart(activityRaw: String) {
+    if activityRaw == "le.bypass" { return }
+    if activityRaw == "le.week" { weeklyHit = false }
+    syncShieldToCurrentPolicy()
   }
 
   static func applyThreshold(eventRaw: String, activityRaw: String) {
