@@ -1,6 +1,13 @@
 import { todayKey, uid } from './lib';
 import type { ScreenTimeBypass, ScreenTimeSelection, ScreenTimeState, ScreenTimeUnlock } from './types';
 
+export {
+  applyIntervalStart,
+  applyThreshold,
+  expireStaleLatches,
+  shouldApplyShield,
+} from './screentime-interval';
+
 export const DEFAULT_PHRASE =
   'Я осознанно управляю своим временем и держу фокус на главных целях';
 

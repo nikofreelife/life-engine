@@ -83,6 +83,7 @@ final class ScreenTimeBridge {
       bypass = formatter.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
     }
     ScreenTimeStore.savePolicy(weekly: weekly, daily: daily, grid: grid, days: days, bypassUntil: bypass)
+    ScreenTimeStore.expireStaleLatches()
 
     if ScreenTimeStore.isBypassed() {
       ScreenTimeStore.clearShield()
