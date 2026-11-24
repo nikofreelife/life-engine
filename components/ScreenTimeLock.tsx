@@ -39,29 +39,31 @@ export function ScreenTimeLock() {
 
   const submit = async (value = draft) => {
     // Auto-match onChangeText and keyboard "Done" / button can fire in one tick.
+    // Hold the lock through a successful count so the second caller cannot
+    // increment again before React re-renders. The completed effect clears it.
     if (submittingRef.current) return;
     submittingRef.current = true;
-    try {
-      const result = submitScreenPhrase(value);
+    const result = submitScreenPhrase(value);
+    if (result === 'mismatch' || result === 'idle') {
+      submittingRef.current = false;
       if (result === 'mismatch') {
         void hapticWarning();
         setError('Фраза не совпала. Строка не засчитана.');
         setDraft('');
-        return;
       }
-      if (result === 'ok') {
-        setDraft('');
-        setError('');
-        return;
-      }
-      if (result === 'unlocked') {
-        void hapticSuccess();
-        setDraft('');
+      return;
+    }
+    setDraft('');
+    setError('');
+    if (result === 'ok') return;
+    if (result === 'unlocked') {
+      void hapticSuccess();
+      try {
         const until = await unlockUntilMidnight();
         if (until) setScreenBypassUntil(until);
+      } finally {
+        submittingRef.current = false;
       }
-    } finally {
-      submittingRef.current = false;
     }
   };
 
