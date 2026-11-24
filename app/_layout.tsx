@@ -65,16 +65,27 @@ function ScreenTimeHost() {
   const { openScreenUnlock, setScreenNativeLocked } = useEngine();
   useEffect(() => {
     const open = (url?: string | null) => {
-      if (url?.includes('screentime-unlock')) openScreenUnlock();
+      if (!url?.includes('screentime-unlock')) return;
+      void isShielded().then((shielded) => {
+        if (shielded) openScreenUnlock();
+      });
     };
     void Linking.getInitialURL().then(open);
     const sub = Linking.addEventListener('url', ({ url }) => open(url));
     const sync = async () => {
-      if (await consumePendingUnlock()) openScreenUnlock();
-      if (await isShielded()) setScreenNativeLocked(true);
+      const pendingUnlock = await consumePendingUnlock();
+      const shielded = await isShielded();
+      if (shielded) setScreenNativeLocked(true);
+      // pendingUnlock can outlive a cleared selection/logout; only open the
+      // phrase gate while ManagedSettings is actually shielding.
+      if (pendingUnlock && shielded) openScreenUnlock();
     };
     void sync();
-    const pending = addScreenTimeListener('onPendingUnlock', () => openScreenUnlock());
+    const pending = addScreenTimeListener('onPendingUnlock', () => {
+      void isShielded().then((shielded) => {
+        if (shielded) openScreenUnlock();
+      });
+    });
     const threshold = addScreenTimeListener('onThresholdReached', () => {
       setScreenNativeLocked(true);
       openScreenUnlock();

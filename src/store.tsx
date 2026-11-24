@@ -62,6 +62,7 @@ import {
   normalizePhrase,
   phraseMatches,
 } from './screentime';
+import { clearPolicy } from '@/modules/life-engine-screentime';
 import { makeTrack, migrateTracks } from './tracks';
 
 type EngineContextValue = {
@@ -270,15 +271,24 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<EngineState>(emptyState);
   const [ready, setReady] = useState(false);
   const loadedId = useRef<string | null>(null);
+  const prevUserId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!authReady) return;
     if (!user) {
+      // Native Screen Time lives in the app group, not AsyncStorage. Leaving it
+      // up after logout keeps the previous account's selection/shields active.
+      if (prevUserId.current) void clearPolicy().catch(() => undefined);
+      prevUserId.current = null;
       loadedId.current = null;
       setState(emptyState());
       setReady(true);
       return;
     }
+    if (prevUserId.current && prevUserId.current !== user.id) {
+      void clearPolicy().catch(() => undefined);
+    }
+    prevUserId.current = user.id;
     let alive = true;
     loadedId.current = null;
     setReady(false);

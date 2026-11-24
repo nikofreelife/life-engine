@@ -71,8 +71,10 @@ export function ScreenTimeBoard() {
 
   useEffect(() => {
     const sync = async () => {
-      if (await consumePendingUnlock()) openScreenUnlock();
-      if (await isShielded()) setScreenNativeLocked(true);
+      const pendingUnlock = await consumePendingUnlock();
+      const shielded = await isShielded();
+      if (shielded) setScreenNativeLocked(true);
+      if (pendingUnlock && shielded) openScreenUnlock();
     };
     void sync();
     const sub = AppState.addEventListener('change', (status) => {

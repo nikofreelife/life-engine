@@ -56,6 +56,7 @@ public class ScreenTimeModule: Module {
       ScreenTimeStore.weeklyHit = false
       ScreenTimeStore.defaults.removeObject(forKey: ScreenTimeStore.selectionKey)
       ScreenTimeStore.defaults.removeObject(forKey: ScreenTimeStore.bypassKey)
+      ScreenTimeStore.defaults.removeObject(forKey: ScreenTimeStore.pendingUnlockKey)
     }
 
     AsyncFunction("unlockUntilMidnight") { () -> String in
