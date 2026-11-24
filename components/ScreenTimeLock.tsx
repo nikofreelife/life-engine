@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -22,10 +22,12 @@ export function ScreenTimeLock() {
   const unlock = state.screenTime.unlock;
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     setDraft('');
     setError('');
+    submittingRef.current = false;
   }, [unlock?.completed, unlock?.startedAt]);
 
   if (!unlock) return null;
@@ -36,23 +38,30 @@ export function ScreenTimeLock() {
   const target = state.screenTime.phrase.replace(/\s+/g, ' ').trim();
 
   const submit = async (value = draft) => {
-    const result = submitScreenPhrase(value);
-    if (result === 'mismatch') {
-      void hapticWarning();
-      setError('Фраза не совпала. Строка не засчитана.');
-      setDraft('');
-      return;
-    }
-    if (result === 'ok') {
-      setDraft('');
-      setError('');
-      return;
-    }
-    if (result === 'unlocked') {
-      void hapticSuccess();
-      setDraft('');
-      const until = await unlockUntilMidnight();
-      if (until) setScreenBypassUntil(until);
+    // Auto-match onChangeText and keyboard "Done" / button can fire in one tick.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      const result = submitScreenPhrase(value);
+      if (result === 'mismatch') {
+        void hapticWarning();
+        setError('Фраза не совпала. Строка не засчитана.');
+        setDraft('');
+        return;
+      }
+      if (result === 'ok') {
+        setDraft('');
+        setError('');
+        return;
+      }
+      if (result === 'unlocked') {
+        void hapticSuccess();
+        setDraft('');
+        const until = await unlockUntilMidnight();
+        if (until) setScreenBypassUntil(until);
+      }
+    } finally {
+      submittingRef.current = false;
     }
   };
 
