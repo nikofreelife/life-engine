@@ -17,11 +17,11 @@ import {
   STORAGE_KEY,
   LEGACY_MIGRATED_KEY,
   applyVisitStreak,
+  canPersistUserBlob,
   defaultItem,
   emptyState,
   hashPin,
-  normalizeHabit,
-  stripUnusedSeedHabits,
+  normalizeHabitList,
   todayKey,
   uid,
   userPinKey,
@@ -240,7 +240,7 @@ function hydrateState(parsed: EngineState, pinHash: string | null): EngineState 
     videoInsights: parsed.videoInsights ?? {},
     videoWatch: parsed.videoWatch ?? {},
     breathLogs: parsed.breathLogs ?? [],
-    habits: stripUnusedSeedHabits((parsed.habits ?? []).map(normalizeHabit)),
+    habits: normalizeHabitList(parsed.habits),
     visitStreak: parsed.visitStreak ?? 0,
     lastLoginDate: parsed.lastLoginDate ?? '',
     lastLoginAt: parsed.lastLoginAt ?? '',
@@ -311,8 +311,10 @@ export function EngineProvider({ children }: { children: ReactNode }) {
         loadedId.current = user.id;
       } catch {
         if (alive) {
+          // Show empty UI but do not mark the user loaded. The persist effect
+          // would otherwise write emptyState() over a blob that failed to parse
+          // (truncated AsyncStorage write, unexpected habits shape, etc.).
           setState(emptyState());
-          loadedId.current = user.id;
         }
       } finally {
         if (alive) setReady(true);
@@ -324,7 +326,7 @@ export function EngineProvider({ children }: { children: ReactNode }) {
   }, [authReady, user?.id]);
 
   useEffect(() => {
-    if (!ready || !user || loadedId.current !== user.id) return;
+    if (!user || !canPersistUserBlob(ready, user.id, loadedId.current)) return;
     AsyncStorage.setItem(userStorageKey(user.id), JSON.stringify(state)).catch(() => undefined);
   }, [ready, state, user]);
 

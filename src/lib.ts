@@ -147,6 +147,20 @@ export function stripUnusedSeedHabits(habits: Habit[]): Habit[] {
   return habits;
 }
 
+/** Persist only after a successful hydrate for this user. A failed load must not clobber disk. */
+export function canPersistUserBlob(
+  ready: boolean,
+  userId: string | null | undefined,
+  loadedId: string | null,
+): boolean {
+  return Boolean(ready && userId && loadedId === userId);
+}
+
+export function normalizeHabitList(habits: unknown): Habit[] {
+  const list = Array.isArray(habits) ? (habits as Habit[]) : [];
+  return stripUnusedSeedHabits(list.map(normalizeHabit));
+}
+
 export function applyVisitStreak(state: EngineState, now = new Date()): EngineState {
   const today = todayKey(now);
   const lastDate = state.lastLoginDate || '';
